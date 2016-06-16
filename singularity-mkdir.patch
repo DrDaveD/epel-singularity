@@ -1,0 +1,10 @@
+--- singularity-2.0/libexec/mods/linux_build.smod~	2016-06-01 15:12:38.000000000 +0100
++++ singularity-2.0/libexec/mods/linux_build.smod	2016-06-16 12:09:24.314611837 +0100
+@@ -172,6 +172,7 @@
+             if [ -e "$SINGULARITY_BUILD_ROOT/$i" ]; then
+                 rm -rf "$SINGULARITY_BUILD_ROOT/$i"
+             fi
++            mkdir -m 755 -p $(basename "$SINGULARITY_BUILD_ROOT/$i")
+             > "$SINGULARITY_BUILD_ROOT/$i"
+         fi
+     done
