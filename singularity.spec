@@ -18,7 +18,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.0
-Release: 6%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 7%{?shortcommit:.git%shortcommit}%{?dist}
 License: BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
@@ -65,6 +65,7 @@ and HPC centers.
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
+%patch5 -p1
 NO_CONFIGURE=y ./autogen.sh
 
 
@@ -120,6 +121,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Jun 17 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-7
+- Actually apply patch5
+
 * Thu Jun 16 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-6
 - Patches for yum/dnf usage, Fedora example, installing rpm release package,
   creating directories
