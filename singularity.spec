@@ -18,7 +18,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.0
-Release: 7%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 8%{?shortcommit:.git%shortcommit}%{?dist}
 License: BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
@@ -35,7 +35,7 @@ Patch2: singularity-yum.patch
 Patch3: singularity-release.patch
 # Fedora example <https://github.com/gmkurtzer/singularity/commit/95cb0a4b763c6eb375633c0bc10d6b322bf77be4>
 Patch4: singularity-fedora.patch
-# Ensure directory exists before copying file to it.  Not upstream yet.
+# Ensure directory exists before copying file to it <https://github.com/gmkurtzer/singularity/commit/4e0f8575f47e8abb59d0869d4b6ade5c2399b6f3
 Patch5: singularity-mkdir.patch
 BuildRequires: automake libtool
 # For debugging in containers.
@@ -121,6 +121,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jun 21 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-8
+- Revert part of -yum patch
+
 * Fri Jun 17 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-7
 - Actually apply patch5
 

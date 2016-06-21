@@ -1,8 +1,8 @@
 diff --git a/libexec/mods/linux_build_redhat.smod b/libexec/mods/linux_build_redhat.smod
-index 488b463..d51c373 100644
+index 488b463..6bf1302 100644
 --- a/libexec/mods/linux_build_redhat.smod
 +++ b/libexec/mods/linux_build_redhat.smod
-@@ -20,9 +20,10 @@
+@@ -20,9 +20,12 @@
  # 
  
  
@@ -10,24 +10,26 @@ index 488b463..d51c373 100644
 -if ! YUM_PATH=`singularity_which yum`; then
 -    message ERROR "YUM is not in PATH!\n"
 +# dnf should probably be preferred if it's present
-+if ! YUM_PATH=`singularity_which dnf` && 
++# Fixme: doing so makes bootstrap on el6 fail with a complaint about
++# /var/log/dnf.log not being writable.
++if # ! YUM_PATH=`singularity_which dnf` && 
 +   ! YUM_PATH=`singularity_which yum`; then
 +    message ERROR "Neither yum nor dnf in PATH!\n"
      return 255
  fi
  
-@@ -73,7 +74,9 @@ Setup() {
+@@ -73,7 +76,9 @@ Setup() {
  }
  
  Bootstrap() {
 -    if ! eval "$YUM_PATH -c $SINGULARITY_BUILD_ROOT/$YUM_CONF --tolerant --installroot $SINGULARITY_BUILD_ROOT -y install $RELEASE_PKG redhat-release coreutils $@"; then
-+    # Avoid plugins which might cuase trouble, e.g. etckeeper, Red Hat
++    # Avoid plugins which might cause trouble, e.g. etckeeper, Red Hat
 +    # subscription-manager.
 +    if ! eval "$YUM_PATH --noplugins -c $SINGULARITY_BUILD_ROOT/$YUM_CONF --tolerant --installroot $SINGULARITY_BUILD_ROOT -y install $RELEASE_PKG redhat-release coreutils $@"; then
          exit 1
      fi
  
-@@ -81,7 +84,7 @@ Bootstrap() {
+@@ -81,7 +86,7 @@ Bootstrap() {
  }
  
  InstallPkgs() {
@@ -36,7 +38,7 @@ index 488b463..d51c373 100644
          exit 1
      fi
  
-@@ -89,7 +92,7 @@ InstallPkgs() {
+@@ -89,7 +94,7 @@ InstallPkgs() {
  }
  
  Cleanup() {

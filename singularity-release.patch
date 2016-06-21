@@ -15,7 +15,7 @@ index d51c373..52748da 100644
 @@ -75,8 +72,9 @@ Setup() {
  
  Bootstrap() {
-     # Avoid plugins which might cuase trouble, e.g. etckeeper, Red Hat
+     # Avoid plugins which might cause trouble, e.g. etckeeper, Red Hat
 -    # subscription-manager.
 -    if ! eval "$YUM_PATH --noplugins -c $SINGULARITY_BUILD_ROOT/$YUM_CONF --tolerant --installroot $SINGULARITY_BUILD_ROOT -y install $RELEASE_PKG redhat-release coreutils $@"; then
 +    # subscription-manager.  Install the release file, as the name of
