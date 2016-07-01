@@ -18,8 +18,8 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.0
-Release: 8%{?shortcommit:.git%shortcommit}%{?dist}
-License: BSD
+Release: 9%{?shortcommit:.git%shortcommit}%{?dist}
+License: LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 %if 0%{?commit:1}
@@ -37,9 +37,19 @@ Patch3: singularity-release.patch
 Patch4: singularity-fedora.patch
 # Ensure directory exists before copying file to it <https://github.com/gmkurtzer/singularity/commit/4e0f8575f47e8abb59d0869d4b6ade5c2399b6f3
 Patch5: singularity-mkdir.patch
+# Avoid failure on some Debian bootstraps <https://github.com/gmkurtzer/singularity/commit/0ecdc7b36b9db4a28569deebefe88bab8e5a7643>
+Patch6: singularity-mounts.patch
+# from https://github.com/gmkurtzer/singularity/commit/4dd96f4723da67010a5b9cf776595af103f7485f
+Patch7: singularity-bootstrap.patch
+Patch8: singularity-strerror.patch
 BuildRequires: automake libtool
 # For debugging in containers.
 Requires: strace ncurses-base
+# Necessary at least when bootstrapping f23 on el6
+Requires: pyliblzma
+# Arguable, but it doesn't pull in much.
+Requires: debootstrap
+
 # ftrace manipulates registers; it's not currently used, but will be
 # resurrected, and configure checks the arch.
 ExclusiveArch: x86_64 %ix86
@@ -66,6 +76,9 @@ and HPC centers.
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
+%patch6 -p1
+%patch7 -p1
+%patch8 -p1
 NO_CONFIGURE=y ./autogen.sh
 
 
@@ -121,6 +134,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Jul  1 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-9
+- Require pyliblzma and debootstrap
+- Patch for mounting kernel file systems
+- Fix License tag
+- Patch for bootstrap
+
 * Tue Jun 21 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-8
 - Revert part of -yum patch
 
