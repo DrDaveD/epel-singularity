@@ -1,0 +1,60 @@
+--- a/libexec/bootstrap.sh
++++ b/libexec/bootstrap.sh
+@@ -38,9 +38,9 @@ singularity_import linux_build
+ 
+ BUILD_SPEC="$1"
+ shift
+-TMPDIR=`mktemp -d /tmp/singularity-bootstrap.XXXXXXX`
++SINGULARITY_TMPDIR=`mktemp -d /tmp/singularity-bootstrap.XXXXXXX`
+ 
+-export TMPDIR
++export SINGULARITY_TMPDIR
+ 
+ # Always run these checks
+ SanityCheck
+@@ -55,4 +55,4 @@ fi
+ 
+ Finalize
+ 
+-rm -rf "$TMPDIR"
++rm -rf "$SINGULARITY_TMPDIR"
+diff --git a/libexec/mods/linux_build.smod b/libexec/mods/linux_build.smod
+index 518f4a2..011d1ff 100644
+--- a/libexec/mods/linux_build.smod
++++ b/libexec/mods/linux_build.smod
+@@ -36,7 +36,7 @@ Setup() {
+ }
+ 
+ Bootstrap() {
+-    if [ ! -f "$TMPDIR/type" ]; then
++    if [ ! -f "$SINGULARITY_TMPDIR/type" ]; then
+         echo "Bootstrap: You must first call 'DistType'!" >&2
+         exit 5
+     fi
+@@ -49,7 +49,7 @@ Bootstrap() {
+ }
+ 
+ InstallPkgs() {
+-    if [ ! -f "$TMPDIR/type" ]; then
++    if [ ! -f "$SINGULARITY_TMPDIR/type" ]; then
+         echo "InstallPkgs: You must first call 'DistType'!" >&2
+         exit 5
+     fi
+@@ -57,7 +57,7 @@ InstallPkgs() {
+ }
+ 
+ Cleanup() {
+-    if [ ! -f "$TMPDIR/type" ]; then
++    if [ ! -f "$SINGULARITY_TMPDIR/type" ]; then
+         echo "Cleanup: You must first call 'DistType'!" >&2
+         exit 5
+     fi
+@@ -82,7 +82,7 @@ DistType() {
+         exit 255
+     fi
+ 
+-    echo "$TYPE" > "$TMPDIR/type"
++    echo "$TYPE" > "$SINGULARITY_TMPDIR/type"
+ 
+     return 0
+ }
