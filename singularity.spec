@@ -1,7 +1,5 @@
 # Based on the bundled version with as few changes as possible.
 # The el5 features are required.
-# See https://github.com/gmkurtzer/singularity/issues/64 about some
-# rpmlint warnings.
 
 %global _hardened_build 1
 
@@ -18,7 +16,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.0
-Release: 9%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 10%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
@@ -41,10 +39,16 @@ Patch5: singularity-mkdir.patch
 Patch6: singularity-mounts.patch
 # from https://github.com/gmkurtzer/singularity/commit/4dd96f4723da67010a5b9cf776595af103f7485f
 Patch7: singularity-bootstrap.patch
+# Additional error-reporting, merged upstream
 Patch8: singularity-strerror.patch
+# Avoid default licensing conditions for changes
+Patch9: singularity-copying.patch
+# Fix checks of return values
+Patch10: singularity-ret.patch
+# Remove possible-race warning
+Patch11: singularity-race.patch
 BuildRequires: automake libtool
-# For debugging in containers.
-Requires: strace ncurses-base
+Requires: %name-runtime
 # Necessary at least when bootstrapping f23 on el6
 Requires: pyliblzma
 # Arguable, but it doesn't pull in much.
@@ -69,6 +73,19 @@ other container solutions do not apply to Singularity making it an
 ideal solution for users (both computational and non-computational)
 and HPC centers.
 
+%package runtime
+Summary: Support for running Singularity containers
+# For debugging in containers.
+Requires: strace ncurses-base
+Group: System Environment/Base
+ExclusiveArch: x86_64 %ix86
+BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+
+%description runtime
+This package contains support for running containers created by %name,
+e.g. "singularity exec ...".
+
+
 %prep
 %setup -q -n %{name}-%{ver}
 %patch1 -p0
@@ -79,6 +96,8 @@ and HPC centers.
 %patch6 -p1
 %patch7 -p1
 %patch8 -p1
+%patch10 -p1
+%patch11 -p1
 NO_CONFIGURE=y ./autogen.sh
 
 
@@ -112,28 +131,45 @@ rm -rf $RPM_BUILD_ROOT
 %license COPYING LICENSE
 %doc AUTHORS README.md TODO examples
 # currently empty: NEWS ChangeLog
-%dir %{_libexecdir}/singularity
-# Required -- see the URL.
-%attr(4755, root, root) %{_libexecdir}/singularity/sexec
-%{_libexecdir}/singularity/functions
 # Not used in this version (but to be resurrected in future)
 %exclude %{_libexecdir}/singularity/ftrace
 %exclude %{_libexecdir}/singularity/ftype
 %{_libexecdir}/singularity/mods
-%{_libexecdir}/singularity/cli
 %{_libexecdir}/singularity/bootstrap.sh
 %{_libexecdir}/singularity/copy.sh
 %{_libexecdir}/singularity/image-bind
 %{_libexecdir}/singularity/image-create
 %{_libexecdir}/singularity/image-expand
-%{_libexecdir}/singularity/image-mount
+%{_libexecdir}/singularity/cli/bootstrap.*
+%{_libexecdir}/singularity/cli/copy.*
+%{_libexecdir}/singularity/cli/create.*
+%{_libexecdir}/singularity/cli/expand.*
+%{_libexecdir}/singularity/cli/export.*
+%{_libexecdir}/singularity/cli/import.*
+
+%files runtime
+%license COPYING LICENSE
+%dir %{_libexecdir}/singularity
+# Required -- see the URL.
+%attr(4755, root, root) %{_libexecdir}/singularity/sexec
+%{_libexecdir}/singularity/functions
 %{_bindir}/singularity
 %{_bindir}/run-singularity
+%{_libexecdir}/singularity/cli/exec.*
+%{_libexecdir}/singularity/cli/help.*
+%{_libexecdir}/singularity/cli/run.*
+%{_libexecdir}/singularity/cli/mount.*
+%{_libexecdir}/singularity/cli/shell.*
+%{_libexecdir}/singularity/image-mount
 %dir %{_sysconfdir}/singularity
 %config(noreplace) %{_sysconfdir}/singularity/*
 
 
 %changelog
+* Wed Jul 13 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-10
+- Modify COPYING to avoid default licensing
+- Patches for race warning and return values
+
 * Fri Jul  1 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-9
 - Require pyliblzma and debootstrap
 - Patch for mounting kernel file systems

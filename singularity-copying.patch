@@ -1,0 +1,12 @@
+diff --git a/COPYING b/COPYING
+index 2f53c72..47ae2ff 100644
+--- a/COPYING
++++ b/COPYING
+@@ -1 +1,6 @@
+-See LICENSE in this directory.
++For the basic conditions, see LICENSE in this directory.
++
++In reference to the default licensing condition in LICENSE,
++Enhancements in this distribution which do not have a separate licence
++statement are distributed only under the basic BSD conditions (1),
++(2), and (3), without additional permissions.

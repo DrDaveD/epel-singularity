@@ -1,0 +1,14 @@
+--- singularity-2.0/src/image.c~
++++ singularity-2.0/src/image.c
+@@ -65,9 +65,9 @@
+         fseek(image_fp, 1024 * 1024, SEEK_CUR);
+     }
+     fprintf(image_fp, "0");
+-    fclose(image_fp);
+ 
+-    chmod(image, 0755);
++    fchmod(fileno(image_fp), 0755);
++    fclose(image_fp);
+ 
+     return(0);
+ }
