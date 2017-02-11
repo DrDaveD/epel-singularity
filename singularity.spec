@@ -16,7 +16,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.0
-Release: 10%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 11%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
@@ -166,6 +166,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Sat Feb 11 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.0-11
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_26_Mass_Rebuild
+
 * Wed Jul 13 2016 Dave Love <loveshack@fedoraproject.org> - 2.0-10
 - Modify COPYING to avoid default licensing
 - Patches for race warning and return values
