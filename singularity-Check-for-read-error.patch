@@ -1,0 +1,35 @@
+From 6af4962b30c3a8c4c2859898aa862502c6ef1040 Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Sun, 14 May 2017 23:14:35 +0100
+Subject: [PATCH 17/30] Check for read error
+
+---
+ src/lib/config_parser.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/lib/config_parser.c b/src/lib/config_parser.c
+index e8127abc..b9ef97b6 100644
+--- a/src/lib/config_parser.c
++++ b/src/lib/config_parser.c
+@@ -77,6 +77,7 @@ char *singularity_config_get_value(char *key) {
+ 
+     singularity_message(DEBUG, "Called singularity_config_get_value(%s)\n", key);
+ 
++    errno = 0;
+     while ( fgets(line, MAX_LINE_LEN, config_fp) ) {
+         if ( ( config_key = strtok(line, "=") ) != NULL ) {
+             chomp(config_key);
+@@ -89,6 +90,10 @@ char *singularity_config_get_value(char *key) {
+             }
+         }
+     }
++    if ( errno != 0 ) {
++        singularity_message(ERROR, "Reading config file failed: %s\n", strerror(errno));
++        ABORT(255);
++    }
+ 
+     singularity_message(DEBUG, "No configuration file entry found for '%s'\n", key);
+     return(NULL);
+-- 
+2.11.0
+

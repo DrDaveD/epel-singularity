@@ -1,10 +1,16 @@
 # Based on the bundled version with as few changes as possible.
-# The el5 features are required.
+
+# Fixme: Move Python bits to the right place
+# Fixme: Look at the Python stuff.  It appears to work with both python2
+#        and python3, at least, and may not need to obey the Python
+#        packaging rules.
+# Fixme: Is there any use for devel files?
+
+# Presumably the chdir isn't close enough to the chroot to avoid this
+# false positive:
+# singularity-runtime.x86_64: E: missing-call-to-chdir-with-chroot /usr/lib64/libsingularity.so.1.0.0
 
 %global _hardened_build 1
-
-# Run %%check, which requires sudo
-%bcond_with check
 
 # For non-releases
 #global commit e7409ff5b279bcee0574576c352f2d251851b9ba
@@ -15,49 +21,44 @@
 
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
-Version: 2.0
-Release: 11%{?shortcommit:.git%shortcommit}%{?dist}
+Version: 2.2.1
+Release: 1%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
-Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 %if 0%{?commit:1}
 Source: https://codeload.github.com/gmkurtzer/singularity/tar.gz/%{commit}#/%{name}-%{shortcommit}.tar.gz
 %else
 Source: https://github.com/gmkurtzer/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
 %endif
-# Port upstream changes for <https://github.com/gmkurtzer/singularity/issues/64>
-Patch1: singularity-sec.patch
-# Better handling of yum/dnf <https://github.com/loveshack/singularity/commit/3322d29bf9323194ddaaddc0f082595ca9f4ad76>
-Patch2: singularity-yum.patch
-# DTRT for rpm release package <https://github.com/gmkurtzer/singularity/commit/327c4f8d35d576ba754c0fa4434555d20878e8a4>
-Patch3: singularity-release.patch
-# Fedora example <https://github.com/gmkurtzer/singularity/commit/95cb0a4b763c6eb375633c0bc10d6b322bf77be4>
-Patch4: singularity-fedora.patch
-# Ensure directory exists before copying file to it <https://github.com/gmkurtzer/singularity/commit/4e0f8575f47e8abb59d0869d4b6ade5c2399b6f3
-Patch5: singularity-mkdir.patch
-# Avoid failure on some Debian bootstraps <https://github.com/gmkurtzer/singularity/commit/0ecdc7b36b9db4a28569deebefe88bab8e5a7643>
-Patch6: singularity-mounts.patch
-# from https://github.com/gmkurtzer/singularity/commit/4dd96f4723da67010a5b9cf776595af103f7485f
-Patch7: singularity-bootstrap.patch
-# Additional error-reporting, merged upstream
-Patch8: singularity-strerror.patch
 # Avoid default licensing conditions for changes
-Patch9: singularity-copying.patch
-# Fix checks of return values
-Patch10: singularity-ret.patch
-# Remove possible-race warning
-Patch11: singularity-race.patch
-BuildRequires: automake libtool
+Patch1: singularity-copying.patch
+# See patches for info
+Patch2: singularity-Fix-type-related-errors.patch
+Patch3: singularity-Make-syslog-call-format-safe.patch
+Patch4: singularity-Add-format-attributes-and-fix-format-error.patch
+Patch5: singularity-Fix-variable-reference.patch
+Patch6: singularity-Fix-memory-related-warnings.patch
+Patch7: singularity-Check-for-gid-0-ownership-as-well-as-uid-0.patch
+Patch8: singularity-Use-strtol-not-atoi.patch
+Patch9: singularity-Check-for-read-error.patch
+Patch10: singularity-Fix-tmp-usage.patch
+Patch11: singularity-Configure-for-_GNU_SOURCE-and-make-config.h-first-he.patch
+Patch12: singularity-Use-TMPDIR.patch
+Patch13: singularity-Drop-privileges-before-printing-messages.patch
+Patch14: singularity-Ensure-correct-ownership-for-singularity.conf-on-ins.patch
+Patch15: singularity-Replace-malloc-and-strdup-with-xmalloc-and-xstrdup-t.patch
+Patch16: singularity-More-config.h-usage-for-C11.patch
+Patch17: singularity-Replace-obsolete-AC_PROG_LIBTOOL-with-LT_INIT.patch
+Patch18: singularity-Zero-memory-written-to-image.patch
+
+BuildRequires: automake libtool chrpath python2-devel
 Requires: %name-runtime
 # Necessary at least when bootstrapping f23 on el6
 Requires: pyliblzma
 # Arguable, but it doesn't pull in much.
 Requires: debootstrap
-
-# ftrace manipulates registers; it's not currently used, but will be
-# resurrected, and configure checks the arch.
-ExclusiveArch: x86_64 %ix86
-BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+# See above
+Requires: /usr/bin/python
 
 %description 
 Singularity is a container platform focused on supporting "Mobility of
@@ -88,7 +89,7 @@ e.g. "singularity exec ...".
 
 %prep
 %setup -q -n %{name}-%{ver}
-%patch1 -p0
+%patch1 -p1
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
@@ -96,34 +97,44 @@ e.g. "singularity exec ...".
 %patch6 -p1
 %patch7 -p1
 %patch8 -p1
+%patch9 -p1
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
+%patch13 -p1
+%patch14 -p1
+%patch15 -p1
+%patch16 -p1
+%patch17 -p1
+%patch18 -p1
+
 NO_CONFIGURE=y ./autogen.sh
 
 
 %build
 # https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/message/6CPVVNZHV3LAGYSMM6EA4JTUCWT2HLWT/
 %{!?__global_ldflags: %global __global_ldflags -Wl,-z,relro -Wl,-z,now}
-%configure 
+%configure --disable-static %{?fedora:--with-userns}
 %{__make} %{?mflags} %{?smp_mflags}
 
 
 %install
-rm -rf $RPM_BUILD_ROOT
 %{__make} install DESTDIR=$RPM_BUILD_ROOT %{?mflags_install}
-chmod 644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/cli/*{summary,help}
+chmod 644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/cli/*help
+rm $RPM_BUILD_ROOT%{_libdir}/*.la
+chrpath -d $RPM_BUILD_ROOT%{_libexecdir}/singularity/sexec-suid
+chmod 0644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/__init__.py \
+           $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/docker/__init__.py
 
 
 %check
-# requires sudo
+# requires sudo and actually a properly-installed version, so not useful
 %if %{with check}
 sh test.sh
 %endif
 
-
-%clean
-rm -rf $RPM_BUILD_ROOT
-
+%post runtime -p /sbin/ldconfig
+%postun runtime -p /sbin/ldconfig
 
 %{!?_licensedir:%global license %doc}
 
@@ -131,21 +142,19 @@ rm -rf $RPM_BUILD_ROOT
 %license COPYING LICENSE
 %doc AUTHORS README.md TODO examples
 # currently empty: NEWS ChangeLog
-# Not used in this version (but to be resurrected in future)
-%exclude %{_libexecdir}/singularity/ftrace
-%exclude %{_libexecdir}/singularity/ftype
-%{_libexecdir}/singularity/mods
-%{_libexecdir}/singularity/bootstrap.sh
-%{_libexecdir}/singularity/copy.sh
 %{_libexecdir}/singularity/image-bind
 %{_libexecdir}/singularity/image-create
 %{_libexecdir}/singularity/image-expand
 %{_libexecdir}/singularity/cli/bootstrap.*
+%{_libexecdir}/singularity/bootstrap
 %{_libexecdir}/singularity/cli/copy.*
 %{_libexecdir}/singularity/cli/create.*
 %{_libexecdir}/singularity/cli/expand.*
 %{_libexecdir}/singularity/cli/export.*
 %{_libexecdir}/singularity/cli/import.*
+%{_libexecdir}/singularity/helpers
+%{_libexecdir}/singularity/image-handler.sh
+%{_libexecdir}/singularity/python
 
 %files runtime
 %license COPYING LICENSE
@@ -156,16 +165,33 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/singularity
 %{_bindir}/run-singularity
 %{_libexecdir}/singularity/cli/exec.*
-%{_libexecdir}/singularity/cli/help.*
 %{_libexecdir}/singularity/cli/run.*
 %{_libexecdir}/singularity/cli/mount.*
 %{_libexecdir}/singularity/cli/shell.*
 %{_libexecdir}/singularity/image-mount
+%{_libexecdir}/singularity/cli/singularity.help
+%{_libexecdir}/singularity/cli/start.*
+%{_libexecdir}/singularity/cli/stop.*
+%{_libexecdir}/singularity/cli/test.*
+%{_libexecdir}/singularity/get-section
 %dir %{_sysconfdir}/singularity
 %config(noreplace) %{_sysconfdir}/singularity/*
+%{_libdir}/libsingularity.so.*
+%exclude %{_libdir}/libsingularity.so
+%exclude %{_includedir}/singularity.h
+%{_libexecdir}/singularity/sexec-suid
+%{_mandir}/man1/singularity.1*
+%dir %{_sysconfdir}/bash_completion.d
+%{_sysconfdir}/bash_completion.d/singularity
 
 
 %changelog
+* Tue May 16 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-1
+- New version
+- Various spec adjustments for the new version
+- Replace the patches with a load more
+- Remove RHEL5 rpm-isms
+
 * Sat Feb 11 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.0-11
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_26_Mass_Rebuild
 

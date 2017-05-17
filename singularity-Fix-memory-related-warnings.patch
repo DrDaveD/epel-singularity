@@ -1,0 +1,168 @@
+From eb4ac3e1cd6f58708b2916c2afb2739d470f4cb5 Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Sun, 14 May 2017 17:31:31 +0100
+Subject: [PATCH 06/30] Fix memory-related warnings
+
+---
+ src/get-section.c       |  2 +-
+ src/lib/config_parser.c |  5 +----
+ src/lib/image-util.c    |  5 +++++
+ src/lib/message.c       | 14 +++++++-------
+ src/lib/mount/cwd/cwd.c |  2 +-
+ src/lib/rootfs/rootfs.c |  1 +
+ 6 files changed, 16 insertions(+), 13 deletions(-)
+
+diff --git a/src/get-section.c b/src/get-section.c
+index 9fc1e905..9e8f116a 100644
+--- a/src/get-section.c
++++ b/src/get-section.c
+@@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
+     char *file;
+     int toggle_retval = 1;
+     FILE *input;
+-    char *line = (char *)malloc(MAX_LINE_LEN);;
++    char line[MAX_LINE_LEN];
+ 
+     if ( argc < 2 ) {
+         printf("USAGE: %s [section] [file]\n", argv[0]);
+diff --git a/src/lib/config_parser.c b/src/lib/config_parser.c
+index 08e03a86..e8127abc 100644
+--- a/src/lib/config_parser.c
++++ b/src/lib/config_parser.c
+@@ -68,15 +68,13 @@ void singularity_config_rewind(void) {
+ char *singularity_config_get_value(char *key) {
+     char *config_key;
+     char *config_value;
+-    char *line;
++    char line[MAX_LINE_LEN];
+ 
+     if ( config_fp == NULL ) {
+         singularity_message(ERROR, "Called singularity_config_get_value() before opening a config!\n");
+         ABORT(255);
+     }
+ 
+-    line = (char *)malloc(MAX_LINE_LEN);
+-
+     singularity_message(DEBUG, "Called singularity_config_get_value(%s)\n", key);
+ 
+     while ( fgets(line, MAX_LINE_LEN, config_fp) ) {
+@@ -91,7 +89,6 @@ char *singularity_config_get_value(char *key) {
+             }
+         }
+     }
+-    free(line);
+ 
+     singularity_message(DEBUG, "No configuration file entry found for '%s'\n", key);
+     return(NULL);
+diff --git a/src/lib/image-util.c b/src/lib/image-util.c
+index 29b105bd..9222d8e7 100644
+--- a/src/lib/image-util.c
++++ b/src/lib/image-util.c
+@@ -114,6 +114,7 @@ int singularity_image_create(char *image, int size) {
+     singularity_message(DEBUG, "Opening image 'w'\n");
+     if ( ( image_fp = fopen(image, "w") ) == NULL ) { // Flawfinder: ignore
+         fprintf(stderr, "ERROR: Could not open image for writing %s: %s\n", image, strerror(errno));
++        free(buff);
+         return(-1);
+     }
+ 
+@@ -128,6 +129,7 @@ int singularity_image_create(char *image, int size) {
+         }
+     }
+ 
++    free(buff);
+     singularity_message(VERBOSE2, "Making image executable\n");
+     fchmod(fileno(image_fp), 0755);
+ 
+@@ -149,6 +151,7 @@ int singularity_image_expand(char *image, int size) {
+     singularity_message(DEBUG, "Opening image 'r+'\n");
+     if ( ( image_fp = fopen(image, "r+") ) == NULL ) { // Flawfinder: ignore
+         fprintf(stderr, "ERROR: Could not open image for writing %s: %s\n", image, strerror(errno));
++        free(buff);
+         return(-1);
+     }
+ 
+@@ -159,6 +162,7 @@ int singularity_image_expand(char *image, int size) {
+     singularity_message(DEBUG, "Removing the footer from image\n");
+     if ( ftruncate(fileno(image_fp), position-1) < 0 ) {
+         fprintf(stderr, "ERROR: Failed truncating the marker bit off of image %s: %s\n", image, strerror(errno));
++        free(buff);
+         return(-1);
+     }
+     singularity_message(VERBOSE2, "Expanding image by %dMB\n", size);
+@@ -168,6 +172,7 @@ int singularity_image_expand(char *image, int size) {
+             ABORT(255);
+         }
+     }
++    free(buff);
+     fprintf(image_fp, "0");
+     fclose(image_fp);
+ 
+diff --git a/src/lib/message.c b/src/lib/message.c
+index dbaba509..502cb454 100644
+--- a/src/lib/message.c
++++ b/src/lib/message.c
+@@ -76,28 +76,28 @@ void _singularity_message(int level, const char *function, const char *file, int
+ 
+     switch (level) {
+         case ABRT:
+-            prefix = strdup("ABORT");
++            prefix = "ABORT";
+             syslog_level = LOG_ALERT;
+             break;
+         case ERROR:
+-            prefix = strdup("ERROR");
++            prefix = "ERROR";
+             syslog_level = LOG_ERR;
+             break;
+         case  WARNING:
+-            prefix = strdup("WARNING");
++            prefix = "WARNING";
+             syslog_level = LOG_WARNING;
+             break;
+         case LOG:
+-            prefix = strdup("LOG");
++            prefix = "LOG";
+             break;
+         case DEBUG:
+-            prefix = strdup("DEBUG");
++            prefix = "DEBUG";
+             break;
+         case INFO:
+-            prefix = strdup("INFO");
++            prefix = "INFO";
+             break;
+         default:
+-            prefix = strdup("VERBOSE");
++            prefix = "VERBOSE";
+             break;
+     }
+ 
+diff --git a/src/lib/mount/cwd/cwd.c b/src/lib/mount/cwd/cwd.c
+index c3d2c348..56f547df 100644
+--- a/src/lib/mount/cwd/cwd.c
++++ b/src/lib/mount/cwd/cwd.c
+@@ -41,7 +41,7 @@
+ 
+ void singularity_mount_cwd(void) {
+     char *container_dir = singularity_rootfs_dir();
+-    char *cwd_path = (char *) malloc(PATH_MAX);
++    char cwd_path[PATH_MAX];
+     int r;
+ 
+     singularity_message(DEBUG, "Checking to see if we should mount current working directory\n");
+diff --git a/src/lib/rootfs/rootfs.c b/src/lib/rootfs/rootfs.c
+index 2b42520b..4c2656b1 100644
+--- a/src/lib/rootfs/rootfs.c
++++ b/src/lib/rootfs/rootfs.c
+@@ -220,6 +220,7 @@ int singularity_rootfs_mount(void) {
+ 
+         overlay_enabled = 1;
+     }
++    free(overlay_options);
+ 
+ #endif /* SINGULARITY_OVERLAYFS */
+ 
+-- 
+2.11.0
+

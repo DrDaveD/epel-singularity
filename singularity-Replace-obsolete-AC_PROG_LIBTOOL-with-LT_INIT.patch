@@ -1,0 +1,31 @@
+From fe87a0764c8dcc53a246c51597c547cb72aee7b4 Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Tue, 16 May 2017 10:42:14 +0100
+Subject: [PATCH] Replace obsolete AC_PROG_LIBTOOL with LT_INIT
+
+---
+ configure.ac | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 6d381aef..f29def58 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -33,12 +33,12 @@ AC_CONFIG_SRCDIR([src])
+ AC_CONFIG_HEADERS([src/config.h])
+ AC_CONFIG_MACRO_DIR([m4])
+ AC_PROG_INSTALL
+-AC_PROG_LIBTOOL
++LT_INIT
+ AC_PROG_CC
+ AM_INIT_AUTOMAKE
+ AM_PROG_CC_C_O
+ AC_ENABLE_SHARED
+-AC_PROG_LIBTOOL(libtool)
++LT_INIT([libtool])
+ 
+ # Setting rpath if necessary
+ if test "$libdir" = "\${exec_prefix}/lib"; then
+-- 
+2.11.0
+

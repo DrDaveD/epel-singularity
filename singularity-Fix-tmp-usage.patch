@@ -1,0 +1,54 @@
+--- a/libexec/bootstrap/main.sh
++++ b/libexec/bootstrap/main.sh
+@@ -36,7 +36,7 @@ fi
+ 
+ SINGULARITY_BUILDDEF="${1:-}"
+ shift
+-SINGULARITY_TMPDIR=`mktemp -d /tmp/singularity-bootstrap.XXXXXXX`
++SINGULARITY_TMPDIR=`mktemp --tmpdir -d singularity-bootstrap.XXXXXXX`
+ PATH=/bin:/sbin:$PATH
+ HOME=/root
+ RETVAL=0
+diff --git a/libexec/bootstrap/modules-v1/arch.sh b/libexec/bootstrap/modules-v1/arch.sh
+index c6329088..77eba0dc 100644
+--- a/libexec/bootstrap/modules-v1/arch.sh
++++ b/libexec/bootstrap/modules-v1/arch.sh
+@@ -67,8 +67,7 @@ BASE_TO_INST=`pacman -Sgq base | grep -xv $BASE_TO_SKIP | tr '\n' ' '`
+ # https://wiki.archlinux.org/index.php/Mirrors#List_by_speed
+ 
+ Bootstrap() {
+-    PACMAN_CONF="/tmp/pacman.conf.$$"
+-    # TODO: Use mktemp instead?
++    PACMAN_CONF=$(mktemp --tmpfile pacman_conf.XXXX)
+     if ! eval "'$WGET' --no-verbose -O '$PACMAN_CONF' '$PACMAN_CONF_URL'"; then
+         message ERROR "Failed to download \`$PACMAN_CONF_URL' to \`$PACMAN_CONF'.\n"
+         exit 1
+diff --git a/libexec/bootstrap/modules-v2/build-arch.sh b/libexec/bootstrap/modules-v2/build-arch.sh
+index 67c97c1a..43250e5e 100644
+--- a/libexec/bootstrap/modules-v2/build-arch.sh
++++ b/libexec/bootstrap/modules-v2/build-arch.sh
+@@ -77,7 +77,7 @@ BASE_TO_INST=`pacman -Sgq base | grep -xv $BASE_TO_SKIP | tr '\n' ' '`
+ # TODO: Try choosing fastest mirror(s) with rankmirrors?
+ # https://wiki.archlinux.org/index.php/Mirrors#List_by_speed
+ 
+-PACMAN_CONF="/tmp/pacman.conf.$$"
++PACMAN_CONF=$(mktemp --tmpdir "pacman.conf.XXXX")
+ # TODO: Use mktemp instead?
+ if ! eval "'$WGET' --no-verbose -O '$PACMAN_CONF' '$PACMAN_CONF_URL'"; then
+     message ERROR "Failed to download \`$PACMAN_CONF_URL' to \`$PACMAN_CONF'.\n"
+diff --git a/libexec/cli/status.exec b/libexec/cli/status.exec
+index a62cd9b7..12ff9f86 100644
+--- a/libexec/cli/status.exec
++++ b/libexec/cli/status.exec
+@@ -68,7 +68,7 @@ done
+ # still!
+ 
+ # This is a configurable option, needs to be set accordingly!
+-SESSION_GLOB="/tmp/.singularity-session-${USERID}.*/daemon.pid"
++SESSION_GLOB="${TMPDIR:-/tmp}/.singularity-session-${USERID}.*/daemon.pid"
+ 
+ 
+ # Show status here...
+-- 
+2.11.0
+

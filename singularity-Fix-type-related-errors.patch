@@ -1,0 +1,72 @@
+From 9a6f22453a8aa153361b2a35bd9f6ad34a588afe Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Sun, 14 May 2017 16:39:14 +0100
+Subject: [PATCH 01/30] Fix type-related errors
+
+---
+ src/lib/image-util.c   | 2 +-
+ src/lib/loop-control.c | 4 +++-
+ src/util/file.c        | 2 +-
+ src/util/util.c        | 2 +-
+ 4 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/lib/image-util.c b/src/lib/image-util.c
+index 2441a98c..29b105bd 100644
+--- a/src/lib/image-util.c
++++ b/src/lib/image-util.c
+@@ -76,7 +76,7 @@ int singularity_image_offset(FILE *image_fp) {
+ 
+     if ( singularity_image_check(image_fp) != 0 ) {
+         singularity_message(DEBUG, "File is not a Singularity image, returning zero offset\n");
+-        return(0);
++        return(-1);
+     }
+ 
+     singularity_message(VERBOSE, "Calculating image offset\n");
+diff --git a/src/lib/loop-control.c b/src/lib/loop-control.c
+index 14be9825..cf60b756 100644
+--- a/src/lib/loop-control.c
++++ b/src/lib/loop-control.c
+@@ -92,10 +92,12 @@ char *singularity_loop_bind(FILE *image_fp) {
+ #endif
+ 
+     singularity_message(DEBUG, "Calculating image offset\n");
+-    if ( ( lo64.lo_offset = singularity_image_offset(image_fp) ) < 0 ) {
++    i = singularity_image_offset(image_fp);
++    if ( i < 0 ) {
+         singularity_message(ERROR, "Could not obtain message offset of image\n");
+         ABORT(255);
+     }
++    lo64.lo_offset = i;
+ 
+     singularity_priv_escalate();
+     singularity_message(DEBUG, "Finding next available loop device...\n");
+diff --git a/src/util/file.c b/src/util/file.c
+index 3417a44e..88b74975 100644
+--- a/src/util/file.c
++++ b/src/util/file.c
+@@ -182,7 +182,7 @@ int is_owner(char *path, uid_t uid) {
+         return(-1);
+     }
+ 
+-    if ( uid == (int)filestat.st_uid ) {
++    if ( uid == filestat.st_uid ) {
+         return(0);
+     }
+ 
+diff --git a/src/util/util.c b/src/util/util.c
+index 632754ca..8bd0de36 100644
+--- a/src/util/util.c
++++ b/src/util/util.c
+@@ -138,7 +138,7 @@ char *joinpath(const char * path1, const char * path2) {
+ 
+     size_t ret_pathlen = strlength(tmp_path1, PATH_MAX) + strlength(path2, PATH_MAX) + 2;
+     ret = (char *) malloc(ret_pathlen);
+-    if (snprintf(ret, ret_pathlen, "%s/%s", tmp_path1, path2) >= ret_pathlen) { // Flawfinder: ignore
++    if ((size_t) snprintf(ret, ret_pathlen, "%s/%s", tmp_path1, path2) >= ret_pathlen) { // Flawfinder: ignore
+         singularity_message(ERROR, "Overly-long path name.\n");
+         ABORT(255);
+     }
+-- 
+2.11.0
+

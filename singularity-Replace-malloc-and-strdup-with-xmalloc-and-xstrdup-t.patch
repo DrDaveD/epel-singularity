@@ -1,0 +1,580 @@
+From 85bcc34600948ced91880ccdcb4ddd8401859832 Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Mon, 15 May 2017 15:15:03 +0100
+Subject: [PATCH 30/30] Replace malloc and strdup with xmalloc and xstrdup to
+ check allocations Fixme: Various uses of strdup are useless.
+
+---
+ src/get-section.c                   |  4 ++--
+ src/lib/action/action.c             |  2 +-
+ src/lib/action/shell/shell.c        |  2 +-
+ src/lib/action/start/start.c        |  2 +-
+ src/lib/config_parser.c             |  2 +-
+ src/lib/image-util.c                |  6 +++---
+ src/lib/loop-control.c              |  2 +-
+ src/lib/mount/binds/binds.c         |  2 +-
+ src/lib/mount/home/home.c           |  4 ++--
+ src/lib/mount/hostfs/hostfs.c       |  4 ++--
+ src/lib/mount/mount-util.c          |  4 ++--
+ src/lib/mount/scratch/scratch.c     |  4 ++--
+ src/lib/mount/tmp/tmp.c             |  4 ++--
+ src/lib/mount/userbinds/userbinds.c |  4 ++--
+ src/lib/ns/ns.c                     |  6 +++---
+ src/lib/ns/user/user.c              |  6 +++---
+ src/lib/privilege.c                 |  2 +-
+ src/lib/rootfs/dir/dir.c            |  4 ++--
+ src/lib/rootfs/image/image.c        |  4 ++--
+ src/lib/rootfs/rootfs.c             |  6 +++---
+ src/lib/rootfs/squashfs/squashfs.c  |  4 ++--
+ src/lib/sessiondir.c                |  2 +-
+ src/util/file.c                     | 10 +++++-----
+ src/util/util.c                     | 28 ++++++++++++++++++++++------
+ src/util/util.h                     |  2 ++
+ 25 files changed, 69 insertions(+), 51 deletions(-)
+
+diff --git a/src/get-section.c b/src/get-section.c
+index 00825cb6..118cdbea 100644
+--- a/src/get-section.c
++++ b/src/get-section.c
+@@ -49,8 +49,8 @@ int main(int argc, char ** argv) {
+         exit(0);
+     }
+ 
+-    section = strdup(argv[1]);
+-    file = strdup(argv[2]);
++    section = xstrdup(argv[1]);
++    file = xstrdup(argv[2]);
+ 
+     if ( is_file(file) < 0 ) {
+         singularity_message(ERROR, "File not found: %s\n", file);
+diff --git a/src/lib/action/action.c b/src/lib/action/action.c
+index 7db46f81..02ec9a89 100644
+--- a/src/lib/action/action.c
++++ b/src/lib/action/action.c
+@@ -90,7 +90,7 @@ int singularity_action_init(void) {
+ 
+     free(command);
+ 
+-    cwd_path = (char *) malloc(PATH_MAX);
++    cwd_path = (char *) xmalloc(PATH_MAX);
+ 
+     singularity_message(DEBUG, "Getting current working directory path string\n");
+     if ( getcwd(cwd_path, PATH_MAX) == NULL ) {
+diff --git a/src/lib/action/shell/shell.c b/src/lib/action/shell/shell.c
+index 09ece7b7..7bb5c036 100644
+--- a/src/lib/action/shell/shell.c
++++ b/src/lib/action/shell/shell.c
+@@ -51,7 +51,7 @@ void action_shell_do(int argc, char **argv) {
+     singularity_message(VERBOSE, "Invoking the container's /bin/sh\n");
+     if ( is_exec("/bin/sh") == 0 ) {
+         singularity_message(DEBUG, "Exec'ing /bin/sh\n");
+-        argv[0] = strdup("/bin/sh");
++        argv[0] = xstrdup("/bin/sh");
+         if ( execv("/bin/sh", argv) < 0 ) { // Flawfinder: ignore
+             singularity_message(ERROR, "Failed to execv() /bin/sh: %s\n", strerror(errno));
+             ABORT(255);
+diff --git a/src/lib/action/start/start.c b/src/lib/action/start/start.c
+index d46b821b..47782b56 100644
+--- a/src/lib/action/start/start.c
++++ b/src/lib/action/start/start.c
+@@ -56,7 +56,7 @@ void action_start_init(void) {
+ 
+ void action_start_do(int argc, char **argv) {
+     FILE *comm;
+-    char *line = (char *) malloc(256);
++    char *line = (char *) xmalloc(256);
+     char *sessiondir = singularity_sessiondir_get();
+ 
+     if ( ( daemon_fd = open(joinpath(sessiondir, "daemon.pid"), O_CREAT | O_RDWR, 0755) ) < 0 ) { // Flawfinder: ignore
+diff --git a/src/lib/config_parser.c b/src/lib/config_parser.c
+index 8a36d67f..1800be75 100644
+--- a/src/lib/config_parser.c
++++ b/src/lib/config_parser.c
+@@ -81,7 +81,7 @@ char *singularity_config_get_value(char *key) {
+         if ( ( config_key = strtok(line, "=") ) != NULL ) {
+             chomp(config_key);
+             if ( strcmp(config_key, key) == 0 ) {
+-                if ( ( config_value = strdup(strtok(NULL, "=")) ) != NULL ) {
++                if ( ( config_value = xstrdup(strtok(NULL, "=")) ) != NULL ) {
+                     chomp(config_value);
+                     singularity_message(VERBOSE2, "Got config key %s (= '%s')\n", key, config_value);
+                     return(config_value);
+diff --git a/src/lib/image-util.c b/src/lib/image-util.c
+index 9222d8e7..1b3c8bd4 100644
+--- a/src/lib/image-util.c
++++ b/src/lib/image-util.c
+@@ -48,7 +48,7 @@ int singularity_image_check(FILE *image_fp) {
+     singularity_message(VERBOSE3, "Checking file is a Singularity image\n");
+     rewind(image_fp);
+ 
+-    line = (char *)malloc(MAX_LINE_LEN);
++    line = (char *)xmalloc(MAX_LINE_LEN);
+ 
+     // Get the first line from the config
+     if ( fgets(line, MAX_LINE_LEN, image_fp) == NULL ) {
+@@ -101,7 +101,7 @@ int singularity_image_offset(FILE *image_fp) {
+ 
+ int singularity_image_create(char *image, int size) {
+     FILE *image_fp;
+-    char *buff = (char *) malloc(1024*1024);
++    char *buff = (char *) xmalloc(1024*1024);
+     int i;
+ 
+     singularity_message(VERBOSE, "Creating new sparse image at: %s\n", image);
+@@ -142,7 +142,7 @@ int singularity_image_create(char *image, int size) {
+ 
+ int singularity_image_expand(char *image, int size) {
+     FILE *image_fp;
+-    char *buff = (char *) malloc(1024*1024);
++    char *buff = (char *) xmalloc(1024*1024);
+     long position;
+     int i;
+ 
+diff --git a/src/lib/loop-control.c b/src/lib/loop-control.c
+index f13b4408..2ae4f638 100644
+--- a/src/lib/loop-control.c
++++ b/src/lib/loop-control.c
+@@ -116,7 +116,7 @@ char *singularity_loop_bind(FILE *image_fp) {
+         }
+ 
+         if ( ioctl(fileno(loop_fp), LOOP_SET_FD, fileno(image_fp))== 0 ) {
+-            loop_dev = strdup(test_loopdev);
++            loop_dev = xstrdup(test_loopdev);
+             break;
+         } else {
+             if ( errno == 16 ) {
+diff --git a/src/lib/mount/binds/binds.c b/src/lib/mount/binds/binds.c
+index d1839fe3..1a59e45e 100644
+--- a/src/lib/mount/binds/binds.c
++++ b/src/lib/mount/binds/binds.c
+@@ -52,7 +52,7 @@ int singularity_mount_binds(void) {
+         char *dest = strtok(NULL, ":");
+         chomp(source);
+         if ( dest == NULL ) {
+-            dest = strdup(source);
++            dest = xstrdup(source);
+         } else {
+             chomp(dest);
+         }
+diff --git a/src/lib/mount/home/home.c b/src/lib/mount/home/home.c
+index 224106f2..7163f1b3 100644
+--- a/src/lib/mount/home/home.c
++++ b/src/lib/mount/home/home.c
+@@ -111,7 +111,7 @@ int singularity_mount_home(void) {
+         free(tmpdirpath);
+ 
+     } else if ( is_dir(homedir) == 0 ) {
+-        homedir_source = strdup(homedir);
++        homedir_source = xstrdup(homedir);
+         singularity_message(VERBOSE2, "Set base the home directory source to: %s\n", homedir_source);
+     } else {
+         singularity_message(ERROR, "Could not identify home directory path: %s\n", homedir_source);
+@@ -148,7 +148,7 @@ int singularity_mount_home(void) {
+         if ( s_mkpath(joinpath(container_dir, homedir), 0755) == 0 ) {
+             singularity_priv_drop();
+             singularity_message(DEBUG, "Created home directory within the container: %s\n", homedir);
+-            homedir_base = strdup(homedir);
++            homedir_base = xstrdup(homedir);
+         } else {
+             singularity_priv_drop();
+         }
+diff --git a/src/lib/mount/hostfs/hostfs.c b/src/lib/mount/hostfs/hostfs.c
+index ab75390f..9ad5b720 100644
+--- a/src/lib/mount/hostfs/hostfs.c
++++ b/src/lib/mount/hostfs/hostfs.c
+@@ -66,7 +66,7 @@ int singularity_mount_hostfs(void) {
+         return(1);
+     }
+ 
+-    line = (char *)malloc(MAX_LINE_LEN);
++    line = (char *)xmalloc(MAX_LINE_LEN);
+ 
+     singularity_message(DEBUG, "Getting line by line\n");
+     while ( fgets(line, MAX_LINE_LEN, mounts) ) {
+@@ -85,7 +85,7 @@ int singularity_mount_hostfs(void) {
+             singularity_message(VERBOSE3, "Skipping blank or comment line in /proc/mounts\n");
+             continue;
+         }
+-        if ( ( source = strtok(strdup(line), " ") ) == NULL ) {
++        if ( ( source = strtok(xstrdup(line), " ") ) == NULL ) {
+             singularity_message(VERBOSE3, "Could not obtain mount source from /proc/mounts: %s\n", line);
+             continue;
+         }
+diff --git a/src/lib/mount/mount-util.c b/src/lib/mount/mount-util.c
+index 760927d6..6879b65c 100644
+--- a/src/lib/mount/mount-util.c
++++ b/src/lib/mount/mount-util.c
+@@ -36,7 +36,7 @@
+ int check_mounted(char *mountpoint) {
+     int retval = -1;
+     FILE *mounts;
+-    char *line = (char *)malloc(MAX_LINE_LEN);;
++    char *line = (char *)xmalloc(MAX_LINE_LEN);;
+     char *rootfs_dir = singularity_rootfs_dir();
+ 
+     singularity_message(DEBUG, "Opening /proc/mounts\n");
+@@ -47,7 +47,7 @@ int check_mounted(char *mountpoint) {
+ 
+     singularity_message(DEBUG, "Iterating through /proc/mounts\n");
+     while ( fgets(line, MAX_LINE_LEN, mounts) != NULL ) {
+-        (void) strtok(strdup(line), " ");
++        (void) strtok(xstrdup(line), " ");
+         char *mount = strtok(NULL, " ");
+ 
+         // Check to see if path is in container root
+diff --git a/src/lib/mount/scratch/scratch.c b/src/lib/mount/scratch/scratch.c
+index b50b5890..0808ca1e 100644
+--- a/src/lib/mount/scratch/scratch.c
++++ b/src/lib/mount/scratch/scratch.c
+@@ -87,13 +87,13 @@ void singularity_mount_scratch(void) {
+     free(tmpdir_path);
+ 
+     char *outside_token = NULL;
+-    char *current = strtok_r(strdup(scratchdir_path), ",", &outside_token);
++    char *current = strtok_r(xstrdup(scratchdir_path), ",", &outside_token);
+ 
+     free(scratchdir_path);
+ 
+     while ( current != NULL ) {
+ 
+-        char *full_sourcedir_path = joinpath(sourcedir_path, basename(strdup(current)));
++        char *full_sourcedir_path = joinpath(sourcedir_path, basename(xstrdup(current)));
+ 
+         if ( s_mkpath(full_sourcedir_path, 0750) < 0 ) {
+              singularity_message(ERROR, "Could not create scratch working directory %s: %s\n", full_sourcedir_path, strerror(errno));
+diff --git a/src/lib/mount/tmp/tmp.c b/src/lib/mount/tmp/tmp.c
+index 3d0b01c7..bb928d26 100644
+--- a/src/lib/mount/tmp/tmp.c
++++ b/src/lib/mount/tmp/tmp.c
+@@ -66,8 +66,8 @@ int singularity_mount_tmp(void) {
+         }
+         free(tmpdirpath);
+     } else {
+-        tmp_source = strdup("/tmp");
+-        vartmp_source = strdup("/var/tmp");
++        tmp_source = xstrdup("/tmp");
++        vartmp_source = xstrdup("/var/tmp");
+     }
+ 
+     if ( s_mkpath(tmp_source, 0755) < 0 ) {
+diff --git a/src/lib/mount/userbinds/userbinds.c b/src/lib/mount/userbinds/userbinds.c
+index cb27cf85..dc1a23ba 100644
+--- a/src/lib/mount/userbinds/userbinds.c
++++ b/src/lib/mount/userbinds/userbinds.c
+@@ -59,7 +59,7 @@ void singularity_mount_userbinds(void) {
+         singularity_message(DEBUG, "Parsing SINGULARITY_BINDPATH for user-specified bind mounts.\n");
+         char *outside_token = NULL;
+         char *inside_token = NULL;
+-        char *current = strtok_r(strdup(bind_path_string), ",", &outside_token);
++        char *current = strtok_r(xstrdup(bind_path_string), ",", &outside_token);
+ 
+         free(bind_path_string);
+ 
+@@ -83,7 +83,7 @@ void singularity_mount_userbinds(void) {
+ 
+             if ( ( is_file(source) == 0 ) && ( is_file(joinpath(container_dir, dest)) < 0 ) ) {
+                 if ( singularity_rootfs_overlay_enabled() > 0 ) {
+-                    char *dir = dirname(strdup(dest));
++                    char *dir = dirname(xstrdup(dest));
+                     if ( is_dir(joinpath(container_dir, dir)) < 0 ) {
+                         singularity_message(VERBOSE3, "Creating bind directory on overlay file system: %s\n", dest);
+                         if ( s_mkpath(joinpath(container_dir, dir), 0755) < 0 ) {
+diff --git a/src/lib/ns/ns.c b/src/lib/ns/ns.c
+index 5132edac..99334fbb 100644
+--- a/src/lib/ns/ns.c
++++ b/src/lib/ns/ns.c
+@@ -57,9 +57,9 @@ int singularity_ns_join(pid_t attach_pid) {
+     singularity_message(ERROR, "This host does not support joining existing name spaces\n");
+     ABORT(1);
+ #else
+-    char *nsjoin_pid = (char *)malloc(64);
+-    char *nsjoin_mnt = (char *)malloc(64);
+-    char *nsjoin_ipc = (char *)malloc(64);
++    char *nsjoin_pid = (char *)xmalloc(64);
++    char *nsjoin_mnt = (char *)xmalloc(64);
++    char *nsjoin_ipc = (char *)xmalloc(64);
+ 
+     snprintf(nsjoin_pid, 64, "/proc/%d/ns/pid", attach_pid); // Flawfinder: ignore
+     snprintf(nsjoin_mnt, 64, "/proc/%d/ns/mnt", attach_pid); // Flawfinder: ignore
+diff --git a/src/lib/ns/user/user.c b/src/lib/ns/user/user.c
+index 88a359ff..bb913c1f 100644
+--- a/src/lib/ns/user/user.c
++++ b/src/lib/ns/user/user.c
+@@ -93,7 +93,7 @@ int singularity_ns_user_unshare(void) {
+ 
+     {
+         singularity_message(DEBUG, "Setting setgroups to: 'deny'\n");
+-        char *map_file = (char *) malloc(PATH_MAX);
++        char *map_file = (char *) xmalloc(PATH_MAX);
+         snprintf(map_file, PATH_MAX-1, "/proc/%d/setgroups", getpid()); // Flawfinder: ignore
+         FILE *map_fp = fopen(map_file, "w+"); // Flawfinder: ignore
+         if ( map_fp != NULL ) {
+@@ -111,7 +111,7 @@ int singularity_ns_user_unshare(void) {
+     }
+     {   
+         singularity_message(DEBUG, "Setting GID map to: '0 %i 1'\n", gid);
+-        char *map_file = (char *) malloc(PATH_MAX);
++        char *map_file = (char *) xmalloc(PATH_MAX);
+         snprintf(map_file, PATH_MAX-1, "/proc/%d/gid_map", getpid()); // Flawfinder: ignore
+         FILE *map_fp = fopen(map_file, "w+"); // Flawfinder: ignore
+         if ( map_fp != NULL ) {
+@@ -129,7 +129,7 @@ int singularity_ns_user_unshare(void) {
+     }
+     {   
+         singularity_message(DEBUG, "Setting UID map to: '0 %i 1'\n", uid);
+-        char *map_file = (char *) malloc(PATH_MAX);
++        char *map_file = (char *) xmalloc(PATH_MAX);
+         snprintf(map_file, PATH_MAX-1, "/proc/%d/uid_map", getpid()); // Flawfinder: ignore
+         FILE *map_fp = fopen(map_file, "w+"); // Flawfinder: ignore
+         if ( map_fp != NULL ) {
+diff --git a/src/lib/privilege.c b/src/lib/privilege.c
+index 1f688506..02e8672e 100644
+--- a/src/lib/privilege.c
++++ b/src/lib/privilege.c
+@@ -118,7 +118,7 @@ void singularity_priv_init(void) {
+         uinfo.gid = getgid();
+         uinfo.gids_count = getgroups(0, NULL);
+ 
+-        uinfo.gids = (gid_t *) malloc(sizeof(gid_t) * uinfo.gids_count);
++        uinfo.gids = (gid_t *) xmalloc(sizeof(gid_t) * uinfo.gids_count);
+ 
+         if ( getgroups(uinfo.gids_count, uinfo.gids) < 0 ) {
+             singularity_message(ERROR, "Could not obtain current supplementary group list: %s\n", strerror(errno));
+diff --git a/src/lib/rootfs/dir/dir.c b/src/lib/rootfs/dir/dir.c
+index 0a75ad00..9c778e8e 100644
+--- a/src/lib/rootfs/dir/dir.c
++++ b/src/lib/rootfs/dir/dir.c
+@@ -53,8 +53,8 @@ int rootfs_dir_init(char *source, char *mount_dir) {
+         ABORT(255);
+     }
+ 
+-    source_dir = strdup(source);
+-    mount_point = strdup(mount_dir);
++    source_dir = xstrdup(source);
++    mount_point = xstrdup(mount_dir);
+ 
+     if ( envar_defined("SINGULARITY_WRITABLE") == TRUE ) {
+         read_write = 1;
+diff --git a/src/lib/rootfs/image/image.c b/src/lib/rootfs/image/image.c
+index 6bf2203d..c702335f 100644
+--- a/src/lib/rootfs/image/image.c
++++ b/src/lib/rootfs/image/image.c
+@@ -58,13 +58,13 @@ int rootfs_image_init(char *source, char *mount_dir) {
+     }
+ 
+     if ( is_file(source) == 0 ) {
+-        mount_point = strdup(mount_dir);
++        mount_point = xstrdup(mount_dir);
+     } else {
+         singularity_message(ERROR, "Container image is not available: %s\n", mount_dir);
+         ABORT(255);
+     }
+ 
+-    mount_point = strdup(mount_dir);
++    mount_point = xstrdup(mount_dir);
+ 
+     if ( envar_defined("SINGULARITY_WRITABLE") == TRUE ) {
+         if ( ( image_fp = fopen(source, "r+e") ) == NULL ) { // Flawfinder: ignore
+diff --git a/src/lib/rootfs/rootfs.c b/src/lib/rootfs/rootfs.c
+index f969c20c..fab6bf0e 100644
+--- a/src/lib/rootfs/rootfs.c
++++ b/src/lib/rootfs/rootfs.c
+@@ -66,7 +66,7 @@ char *singularity_rootfs_dir(void) {
+ }
+ 
+ int singularity_rootfs_init(char *source) {
+-    char *containername = basename(strdup(source));
++    char *containername = basename(xstrdup(source));
+ 
+     singularity_message(DEBUG, "Checking on container source type\n");
+ 
+@@ -81,7 +81,7 @@ int singularity_rootfs_init(char *source) {
+ 
+     if ( ( mount_point = singularity_config_get_value("container dir") ) == NULL ) {
+         singularity_message(DEBUG, "Using default container path of: /var/singularity/mnt\n");
+-        mount_point = strdup("/var/singularity/mnt");
++        mount_point = xstrdup(LOCALSTATEDIR "/singularity/mnt");
+     }
+     singularity_message(VERBOSE3, "Set image mount path to: %s\n", mount_point);
+ 
+@@ -111,7 +111,7 @@ int singularity_rootfs_mount(void) {
+     char *overlay_work  = joinpath(mount_point, OVERLAY_WORK);
+     char *overlay_final = joinpath(mount_point, OVERLAY_FINAL);
+     int overlay_options_len = strlength(rootfs_source, PATH_MAX) + strlength(overlay_upper, PATH_MAX) + strlength(overlay_work, PATH_MAX) + 50;
+-    char *overlay_options = (char *) malloc(overlay_options_len);
++    char *overlay_options = (char *) xmalloc(overlay_options_len);
+ 
+     singularity_message(DEBUG, "Checking 'container dir' mount location: %s\n", mount_point);
+     if ( is_dir(mount_point) < 0 ) {
+diff --git a/src/lib/rootfs/squashfs/squashfs.c b/src/lib/rootfs/squashfs/squashfs.c
+index c7a85dd4..254b5387 100644
+--- a/src/lib/rootfs/squashfs/squashfs.c
++++ b/src/lib/rootfs/squashfs/squashfs.c
+@@ -62,13 +62,13 @@ int rootfs_squashfs_init(char *source, char *mount_dir) {
+     }
+ 
+     if ( is_file(source) == 0 ) {
+-        mount_point = strdup(mount_dir);
++        mount_point = xstrdup(mount_dir);
+     } else {
+         singularity_message(ERROR, "Container image is not available: %s\n", mount_dir);
+         ABORT(255);
+     }
+ 
+-    mount_point = strdup(mount_dir);
++    mount_point = xstrdup(mount_dir);
+ 
+     if ( ( image_fp = fopen(source, "re") ) == NULL ) { // Flawfinder: ignore
+         singularity_message(ERROR, "Could not open image (read only) %s: %s\n", source, strerror(errno));
+diff --git a/src/lib/sessiondir.c b/src/lib/sessiondir.c
+index d9b64404..2c31c894 100644
+--- a/src/lib/sessiondir.c
++++ b/src/lib/sessiondir.c
+@@ -56,7 +56,7 @@ char *singularity_sessiondir_init(char *file) {
+         struct stat filestat;
+         uid_t uid = singularity_priv_getuid();
+ 
+-        sessiondir = (char *) malloc(PATH_MAX);
++        sessiondir = (char *) xmalloc(PATH_MAX);
+ 
+         singularity_message(DEBUG, "Checking Singularity configuration for 'sessiondir prefix'\n");
+ 
+diff --git a/src/util/file.c b/src/util/file.c
+index f43e11f1..35ed1b41 100644
+--- a/src/util/file.c
++++ b/src/util/file.c
+@@ -50,7 +50,7 @@ char *file_id(char *path) {
+         return(NULL);
+     }
+ 
+-    ret = (char *) malloc(128);
++    ret = (char *) xmalloc(128);
+     snprintf(ret, 128, "%d.%d.%lu", (int)uid, (int)filestat.st_dev, (long unsigned)filestat.st_ino); // Flawfinder: ignore
+ 
+     singularity_message(VERBOSE2, "Generated file_id: %s\n", ret);
+@@ -364,7 +364,7 @@ char *filecat(char *path) {
+ 
+     rewind(fd);
+ 
+-    ret = (char *) malloc(length+1);
++    ret = (char *) xmalloc(length+1);
+ 
+     while ( ( c = fgetc(fd) ) != EOF ) { // Flawfinder: ignore (checked boundries)
+         ret[pos] = c;
+@@ -379,7 +379,7 @@ char *filecat(char *path) {
+ 
+ 
+ char *basedir(char *dir) {
+-    char *testdir = strdup(dir);
++    char *testdir = xstrdup(dir);
+     char *ret = NULL;
+ 
+     singularity_message(DEBUG, "Obtaining basedir for: %s\n", dir);
+@@ -387,8 +387,8 @@ char *basedir(char *dir) {
+     while ( strcmp(testdir, "/") != 0 ) {
+         singularity_message(DEBUG, "Iterating basedir: %s\n", testdir);
+ 
+-        ret = strdup(testdir);
+-        testdir = dirname(strdup(testdir));
++        ret = xstrdup(testdir);
++        testdir = dirname(xstrdup(testdir));
+     }
+ 
+     return(ret);
+diff --git a/src/util/util.c b/src/util/util.c
+index 1202b142..24341ea0 100644
+--- a/src/util/util.c
++++ b/src/util/util.c
+@@ -40,6 +40,22 @@
+ #include "lib/message.h"
+ 
+ 
++void *xmalloc(size_t l) {
++    void *m = malloc(l);
++    if (m || !l)
++        return m;
++    fprintf(stderr, "ABORT: Can't allocate memory\n");
++    abort();
++}
++
++char *xstrdup(const char *s) {
++    void *ds = strdup(s);
++    if (ds)
++        return ds;
++    fprintf (stderr, "ABORT: Can't allocate memory\n");
++    abort();
++}
++
+ char *envar(char *name, char *allowed, int len) {
+     char *ret;
+     char *env = getenv(name); // Flawfinder: ignore
+@@ -60,7 +76,7 @@ char *envar(char *name, char *allowed, int len) {
+     }
+ 
+     singularity_message(DEBUG, "Checking environment variable has allowed characters: %s\n", name);
+-    ret = (char *) malloc(len+1);
++    ret = (char *) xmalloc(len+1);
+     for(count=0; count <= len && env[count] != '\0'; count++) {
+         int test_char = env[count];
+         int c, success = 0;
+@@ -115,7 +131,7 @@ int intlen(int input) {
+ char *int2str(int num) {
+     char *ret;
+     
+-    ret = (char *) malloc(intlen(num) + 1);
++    ret = (char *) xmalloc(intlen(num) + 1);
+ 
+     snprintf(ret, intlen(num) + 1, "%d", num); // Flawfinder: ignore
+ 
+@@ -123,7 +139,7 @@ char *int2str(int num) {
+ }
+ 
+ char *joinpath(const char * path1, const char * path2) {
+-    char *tmp_path1 = strdup(path1);
++    char *tmp_path1 = xstrdup(path1);
+     int path1_len = strlength(tmp_path1, 4096);
+     char *ret;
+ 
+@@ -135,7 +151,7 @@ char *joinpath(const char * path1, const char * path2) {
+     }
+ 
+     size_t ret_pathlen = strlength(tmp_path1, PATH_MAX) + strlength(path2, PATH_MAX) + 2;
+-    ret = (char *) malloc(ret_pathlen);
++    ret = (char *) xmalloc(ret_pathlen);
+     if ((size_t) snprintf(ret, ret_pathlen, "%s/%s", tmp_path1, path2) >= ret_pathlen) { // Flawfinder: ignore
+         singularity_message(ERROR, "Overly-long path name.\n");
+         ABORT(255);
+@@ -148,7 +164,7 @@ char *strjoin(char *str1, char *str2) {
+     char *ret;
+     int len = strlength(str1, 2048) + strlength(str2, 2048) + 1;
+ 
+-    ret = (char *) malloc(len);
++    ret = (char *) xmalloc(len);
+     if (snprintf(ret, len, "%s%s", str1, str2) >= len) { // Flawfinder: ignore
+        singularity_message(ERROR, "Overly-long string encountered.\n");
+        ABORT(255);
+@@ -200,7 +216,7 @@ char *random_string(int length) {
+     int i;
+     int pid = getpid();
+ 
+-    ret = (char *) malloc(length);
++    ret = (char *) xmalloc(length);
+  
+     srand(time(NULL) * pid);
+     for (i = 0; i < length; ++i) {
+diff --git a/src/util/util.h b/src/util/util.h
+index 31075657..a9576d0b 100644
+--- a/src/util/util.h
++++ b/src/util/util.h
+@@ -39,6 +39,8 @@ char *strjoin(char *str1, char *str2);
+ void chomp(char *str);
+ int strlength(const char *string, int max_len);
+ //char *random_string(int length);
++void *xmalloc(size_t l) __attribute__ ((malloc));
++char *xstrdup(const char *s) __attribute__ ((malloc)) __attribute__ ((nonnull (1)));
+ 
+ // Given a const char * string containing a base-10 integer,
+ // try to convert to an C integer.
+-- 
+2.11.0
+

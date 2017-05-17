@@ -1,0 +1,53 @@
+From 13d1200abd872a878edb594643ce2a445cbc2a01 Mon Sep 17 00:00:00 2001
+From: Dave Love <dave.love@manchester.ac.uk>
+Date: Sun, 14 May 2017 16:53:50 +0100
+Subject: [PATCH 03/30] Add format attributes and fix format error
+
+---
+ src/lib/message.h         | 2 +-
+ src/lib/mount/home/home.c | 2 +-
+ src/lib/singularity.h     | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/lib/message.h b/src/lib/message.h
+index f113cae6..f029ae90 100644
+--- a/src/lib/message.h
++++ b/src/lib/message.h
+@@ -33,7 +33,7 @@
+     #define VERBOSE3 4
+     #define DEBUG 5
+ 
+-    void _singularity_message(int level, const char *function, const char *file, int line, char *format, ...);
++    void _singularity_message(int level, const char *function, const char *file, int line, char *format, ...) __attribute__ ((format (printf, 5, 6)));
+ 
+     #define singularity_message(a,b...) _singularity_message(a, __func__, __FILE__, __LINE__, b)
+ 
+diff --git a/src/lib/mount/home/home.c b/src/lib/mount/home/home.c
+index a80a6642..409f40a3 100644
+--- a/src/lib/mount/home/home.c
++++ b/src/lib/mount/home/home.c
+@@ -61,7 +61,7 @@ int singularity_mount_home(void) {
+             singularity_message(VERBOSE3, "Not mounting home directory as passwd entry for %d not found.\n", uid);
+             return(1);
+         } else {
+-            singularity_message(ERROR, "Failed to lookup username for UID %d: %s\n", getuid, strerror(errno));
++            singularity_message(ERROR, "Failed to lookup username for UID %d: %s\n", uid, strerror(errno));
+             ABORT(255);
+         }
+     }
+diff --git a/src/lib/singularity.h b/src/lib/singularity.h
+index 6053b1db..b2392e65 100644
+--- a/src/lib/singularity.h
++++ b/src/lib/singularity.h
+@@ -175,7 +175,7 @@
+     #define VERBOSE3 4
+     #define DEBUG 5
+ 
+-    extern void _singularity_message(int level, const char *function, const char *file, int line, char *format, ...);
++    extern void _singularity_message(int level, const char *function, const char *file, int line, char *format, ...) __attribute__ ((format (printf, 5, 6)));
+ 
+     #define singularity_message(a,b...) _singularity_message(a, __func__, __FILE__, __LINE__, b)
+ 
+-- 
+2.11.0
+
