@@ -22,7 +22,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.2.1
-Release: 1%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 2%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
 URL: http://singularity.lbl.gov/
 %if 0%{?commit:1}
@@ -114,7 +114,7 @@ NO_CONFIGURE=y ./autogen.sh
 %build
 # https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/message/6CPVVNZHV3LAGYSMM6EA4JTUCWT2HLWT/
 %{!?__global_ldflags: %global __global_ldflags -Wl,-z,relro -Wl,-z,now}
-%configure --disable-static %{?fedora:--with-userns}
+%configure --disable-static %{?fedora:--with-userns} --localstatedir=%{_sharedstatedir}
 %{__make} %{?mflags} %{?smp_mflags}
 
 
@@ -125,6 +125,8 @@ rm $RPM_BUILD_ROOT%{_libdir}/*.la
 chrpath -d $RPM_BUILD_ROOT%{_libexecdir}/singularity/sexec-suid
 chmod 0644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/__init__.py \
            $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/docker/__init__.py
+mkdir -p $RPM_BUILD_ROOT%{_sharedstatedir}/singularity/mnt/overlay/{upper,work}
+mkdir -p $RPM_BUILD_ROOT%{_sharedstatedir}/singularity/mnt/{source,final}
 
 
 %check
@@ -160,7 +162,7 @@ sh test.sh
 %license COPYING LICENSE
 %dir %{_libexecdir}/singularity
 # Required -- see the URL.
-%attr(4755, root, root) %{_libexecdir}/singularity/sexec
+%attr(4755, root, root) %{_libexecdir}/singularity/sexec-suid
 %{_libexecdir}/singularity/functions
 %{_bindir}/singularity
 %{_bindir}/run-singularity
@@ -179,13 +181,18 @@ sh test.sh
 %{_libdir}/libsingularity.so.*
 %exclude %{_libdir}/libsingularity.so
 %exclude %{_includedir}/singularity.h
-%{_libexecdir}/singularity/sexec-suid
+%{_libexecdir}/singularity/sexec
 %{_mandir}/man1/singularity.1*
 %dir %{_sysconfdir}/bash_completion.d
 %{_sysconfdir}/bash_completion.d/singularity
+%{_sharedstatedir}/singularity
 
 
 %changelog
+* Thu May 18 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-2
+- Fix sexec/sexec-suid confusion
+- Use _sharedstatedir, not _localstatedir, and make the mnt directories
+
 * Tue May 16 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-1
 - New version
 - Various spec adjustments for the new version
