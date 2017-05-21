@@ -22,7 +22,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.2.1
-Release: 2%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 3%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
 URL: http://singularity.lbl.gov/
 %if 0%{?commit:1}
@@ -44,7 +44,6 @@ Patch9: singularity-Check-for-read-error.patch
 Patch10: singularity-Fix-tmp-usage.patch
 Patch11: singularity-Configure-for-_GNU_SOURCE-and-make-config.h-first-he.patch
 Patch12: singularity-Use-TMPDIR.patch
-Patch13: singularity-Drop-privileges-before-printing-messages.patch
 Patch14: singularity-Ensure-correct-ownership-for-singularity.conf-on-ins.patch
 Patch15: singularity-Replace-malloc-and-strdup-with-xmalloc-and-xstrdup-t.patch
 Patch16: singularity-More-config.h-usage-for-C11.patch
@@ -79,8 +78,6 @@ Summary: Support for running Singularity containers
 # For debugging in containers.
 Requires: strace ncurses-base
 Group: System Environment/Base
-ExclusiveArch: x86_64 %ix86
-BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 
 %description runtime
 This package contains support for running containers created by %name,
@@ -101,7 +98,6 @@ e.g. "singularity exec ...".
 %patch10 -p1
 %patch11 -p1
 %patch12 -p1
-%patch13 -p1
 %patch14 -p1
 %patch15 -p1
 %patch16 -p1
@@ -189,6 +185,10 @@ sh test.sh
 
 
 %changelog
+* Sun May 21 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-3
+- Drop patch 13, broken in the merged version
+- Fix remaining arch restriction
+
 * Thu May 18 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-2
 - Fix sexec/sexec-suid confusion
 - Use _sharedstatedir, not _localstatedir, and make the mnt directories
