@@ -49,6 +49,7 @@ Patch15: singularity-Replace-malloc-and-strdup-with-xmalloc-and-xstrdup-t.patch
 Patch16: singularity-More-config.h-usage-for-C11.patch
 Patch17: singularity-Replace-obsolete-AC_PROG_LIBTOOL-with-LT_INIT.patch
 Patch18: singularity-Zero-memory-written-to-image.patch
+Patch19: singularity-Fix-configured-container_dir.patch
 
 BuildRequires: automake libtool chrpath python2-devel
 Requires: %name-runtime
@@ -103,6 +104,7 @@ e.g. "singularity exec ...".
 %patch16 -p1
 %patch17 -p1
 %patch18 -p1
+%patch19 -p1
 
 NO_CONFIGURE=y ./autogen.sh
 
@@ -188,6 +190,7 @@ sh test.sh
 * Sun May 21 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-3
 - Drop patch 13, broken in the merged version
 - Fix remaining arch restriction
+- Fix configured container_dir
 
 * Thu May 18 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-2
 - Fix sexec/sexec-suid confusion
