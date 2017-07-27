@@ -22,7 +22,7 @@
 Summary: Enabling "Mobility of Compute" with container based applications
 Name: singularity
 Version: 2.2.1
-Release: 3%{?shortcommit:.git%shortcommit}%{?dist}
+Release: 4%{?shortcommit:.git%shortcommit}%{?dist}
 License: LBNL BSD
 URL: http://singularity.lbl.gov/
 %if 0%{?commit:1}
@@ -187,6 +187,9 @@ sh test.sh
 
 
 %changelog
+* Thu Jul 27 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.2.1-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
+
 * Sun May 21 2017 Dave Love <loveshack@fedoraproject.org> - 2.2.1-3
 - Drop patch 13, broken in the merged version
 - Fix remaining arch restriction
