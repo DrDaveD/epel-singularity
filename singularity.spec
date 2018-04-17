@@ -1,192 +1,170 @@
-# Based on the bundled version with as few changes as possible.
-
-# Fixme: Move Python bits to the right place
-# Fixme: Look at the Python stuff.  It appears to work with both python2
-#        and python3, at least, and may not need to obey the Python
-#        packaging rules.
-# Fixme: Is there any use for devel files?
-
-# Presumably the chdir isn't close enough to the chroot to avoid this
-# false positive:
-# singularity-runtime.x86_64: E: missing-call-to-chdir-with-chroot /usr/lib64/libsingularity.so.1.0.0
+# 
+# Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
+# Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
+#
+# Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
+# 
+# Copyright (c) 2016, The Regents of the University of California, through
+# Lawrence Berkeley National Laboratory (subject to receipt of any required
+# approvals from the U.S. Dept. of Energy).  All rights reserved.
+# 
+# This software is licensed under a customized 3-clause BSD license.  Please
+# consult LICENSE file distributed with the sources of this project regarding
+# your rights to use or distribute this software.
+# 
+# NOTICE.  This Software was developed under funding from the U.S. Department of
+# Energy and the U.S. Government consequently retains certain rights. As such,
+# the U.S. Government has been granted for itself and others acting on its
+# behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+# to reproduce, distribute copies to the public, prepare derivative works, and
+# perform publicly and display publicly, and to permit other to do so. 
+# 
+# 
 
 %global _hardened_build 1
 
-# For non-releases
-#global commit e7409ff5b279bcee0574576c352f2d251851b9ba
+%{!?_rel:%{expand:%%global _rel 1}}
 
-%{?commit:%global shortcommit %(c=%{commit}; echo ${c:0:8})}
-%{?commit:%global ver %{commit}}
-%{!?commit:%global ver %{version}}
-
-Summary: Enabling "Mobility of Compute" with container based applications
+Summary: Application and environment virtualization
 Name: singularity
-Version: 2.2.1
-Release: 5%{?shortcommit:.git%shortcommit}%{?dist}
-License: LBNL BSD
+Version: 2.4.6
+Release: %{_rel}%{?dist}
+# https://spdx.org/licenses/BSD-3-Clause-LBNL.html
+License: BSD and LBNL BSD
+Group: System Environment/Base
 URL: http://singularity.lbl.gov/
-%if 0%{?commit:1}
-Source: https://codeload.github.com/gmkurtzer/singularity/tar.gz/%{commit}#/%{name}-%{shortcommit}.tar.gz
+Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+ExclusiveOS: linux
+BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+BuildRequires: python 
+BuildRequires: automake libtool
+%if "%{_target_vendor}" == "suse"
+Requires: squashfs
 %else
-Source: https://github.com/gmkurtzer/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Requires: squashfs-tools
 %endif
-# Avoid default licensing conditions for changes
-Patch1: singularity-copying.patch
-# See patches for info
-Patch2: singularity-Fix-type-related-errors.patch
-Patch3: singularity-Make-syslog-call-format-safe.patch
-Patch4: singularity-Add-format-attributes-and-fix-format-error.patch
-Patch5: singularity-Fix-variable-reference.patch
-Patch6: singularity-Fix-memory-related-warnings.patch
-Patch7: singularity-Check-for-gid-0-ownership-as-well-as-uid-0.patch
-Patch8: singularity-Use-strtol-not-atoi.patch
-Patch9: singularity-Check-for-read-error.patch
-Patch10: singularity-Fix-tmp-usage.patch
-Patch11: singularity-Configure-for-_GNU_SOURCE-and-make-config.h-first-he.patch
-Patch12: singularity-Use-TMPDIR.patch
-Patch14: singularity-Ensure-correct-ownership-for-singularity.conf-on-ins.patch
-Patch15: singularity-Replace-malloc-and-strdup-with-xmalloc-and-xstrdup-t.patch
-Patch16: singularity-More-config.h-usage-for-C11.patch
-Patch17: singularity-Replace-obsolete-AC_PROG_LIBTOOL-with-LT_INIT.patch
-Patch18: singularity-Zero-memory-written-to-image.patch
-Patch19: singularity-Fix-configured-container_dir.patch
 
-BuildRequires: automake libtool chrpath python2-devel
-Requires: %name-runtime
-# Necessary at least when bootstrapping f23 on el6
-Requires: pyliblzma
-# Arguable, but it doesn't pull in much.
-Requires: debootstrap
-# See above
-Requires: /usr/bin/python
+Requires: %{name}-runtime = %{version}-%{release}
 
-%description 
-Singularity is a container platform focused on supporting "Mobility of
-Compute".
+%description
+Singularity provides functionality to make portable
+containers that can be used across host environments.
 
-Mobility of Compute encapsulates the development to compute model
-where developers can work in an environment of their choosing and
-creation and when the developer needs additional compute resources,
-this environment can easily be copied and executed on other platforms.
-Additionally as the primary use case for Singularity is targeted
-towards computational portability, many of the barriers to entry of
-other container solutions do not apply to Singularity making it an
-ideal solution for users (both computational and non-computational)
-and HPC centers.
+%package devel
+Summary: Development libraries for Singularity
+Group: System Environment/Development
+
+%description devel
+Development files for Singularity
 
 %package runtime
 Summary: Support for running Singularity containers
-# For debugging in containers.
-Requires: strace ncurses-base
 Group: System Environment/Base
 
 %description runtime
-This package contains support for running containers created by %name,
-e.g. "singularity exec ...".
-
+This package contains support for running containers created
+by the %{name} package.
 
 %prep
-%setup -q -n %{name}-%{ver}
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch14 -p1
-%patch15 -p1
-%patch16 -p1
-%patch17 -p1
-%patch18 -p1
-%patch19 -p1
-
-NO_CONFIGURE=y ./autogen.sh
+%setup -q
 
 
 %build
-# https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/message/6CPVVNZHV3LAGYSMM6EA4JTUCWT2HLWT/
-%{!?__global_ldflags: %global __global_ldflags -Wl,-z,relro -Wl,-z,now}
-%configure --disable-static %{?fedora:--with-userns} --localstatedir=%{_sharedstatedir}
-%{__make} %{?mflags} %{?smp_mflags}
+if [ ! -f configure ]; then
+  ./autogen.sh
+fi
+
+%configure
+%{__make} %{?mflags}
 
 
 %install
 %{__make} install DESTDIR=$RPM_BUILD_ROOT %{?mflags_install}
-chmod 644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/cli/*help
-rm $RPM_BUILD_ROOT%{_libdir}/*.la
-chrpath -d $RPM_BUILD_ROOT%{_libexecdir}/singularity/sexec-suid
-chmod 0644 $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/__init__.py \
-           $RPM_BUILD_ROOT%{_libexecdir}/singularity/python/docker/__init__.py
-mkdir -p $RPM_BUILD_ROOT%{_sharedstatedir}/singularity/mnt/overlay/{upper,work}
-mkdir -p $RPM_BUILD_ROOT%{_sharedstatedir}/singularity/mnt/{source,final}
-
-
-%check
-# requires sudo and actually a properly-installed version, so not useful
-%if %{with check}
-sh test.sh
-%endif
+rm -f $RPM_BUILD_ROOT/%{_libdir}/singularity/lib*.la
 
 %post runtime -p /sbin/ldconfig
 %postun runtime -p /sbin/ldconfig
 
-%{!?_licensedir:%global license %doc}
+%clean
+rm -rf $RPM_BUILD_ROOT
 
 %files
-%license COPYING LICENSE
-%doc AUTHORS README.md TODO examples
-# currently empty: NEWS ChangeLog
-%{_libexecdir}/singularity/image-bind
-%{_libexecdir}/singularity/image-create
-%{_libexecdir}/singularity/image-expand
+%license LICENSE.md LICENSE-LBNL.md
+%doc examples CONTRIBUTORS.md CONTRIBUTING.md COPYRIGHT.md INSTALL.md LICENSE-LBNL.md LICENSE.md README.md
+%attr(0755, root, root) %dir %{_sysconfdir}/singularity
+%attr(0644, root, root) %config(noreplace) %{_sysconfdir}/singularity/*
+
+%{_libexecdir}/singularity/cli/apps.*
 %{_libexecdir}/singularity/cli/bootstrap.*
-%{_libexecdir}/singularity/bootstrap
-%{_libexecdir}/singularity/cli/copy.*
+%{_libexecdir}/singularity/cli/build.*
+%{_libexecdir}/singularity/cli/check.*
 %{_libexecdir}/singularity/cli/create.*
-%{_libexecdir}/singularity/cli/expand.*
-%{_libexecdir}/singularity/cli/export.*
-%{_libexecdir}/singularity/cli/import.*
+%{_libexecdir}/singularity/cli/image.*
+%{_libexecdir}/singularity/cli/inspect.*
+%{_libexecdir}/singularity/cli/mount.*
+%{_libexecdir}/singularity/cli/pull.*
+%{_libexecdir}/singularity/cli/selftest.*
 %{_libexecdir}/singularity/helpers
-%{_libexecdir}/singularity/image-handler.sh
 %{_libexecdir}/singularity/python
 
+# Binaries
+%{_libexecdir}/singularity/bin/builddef
+%{_libexecdir}/singularity/bin/cleanupd
+%{_libexecdir}/singularity/bin/get-section
+%{_libexecdir}/singularity/bin/mount
+%{_libexecdir}/singularity/bin/image-type
+%{_libexecdir}/singularity/bin/prepheader
+
+# Directories
+%{_libexecdir}/singularity/bootstrap-scripts
+
+#SUID programs
+%attr(4755, root, root) %{_libexecdir}/singularity/bin/mount-suid
+
 %files runtime
-%license COPYING LICENSE
 %dir %{_libexecdir}/singularity
-# Required -- see the URL.
-%attr(4755, root, root) %{_libexecdir}/singularity/sexec-suid
-%{_libexecdir}/singularity/functions
+%dir %{_localstatedir}/singularity
+%dir %{_localstatedir}/singularity/mnt
+%dir %{_localstatedir}/singularity/mnt/session
+%dir %{_localstatedir}/singularity/mnt/container
+%dir %{_localstatedir}/singularity/mnt/overlay
+%dir %{_localstatedir}/singularity/mnt/final
 %{_bindir}/singularity
 %{_bindir}/run-singularity
+%{_libdir}/singularity/lib*.so.*
+%{_libexecdir}/singularity/cli/action_argparser.*
 %{_libexecdir}/singularity/cli/exec.*
+%{_libexecdir}/singularity/cli/help.*
+%{_libexecdir}/singularity/cli/instance.*
 %{_libexecdir}/singularity/cli/run.*
-%{_libexecdir}/singularity/cli/mount.*
 %{_libexecdir}/singularity/cli/shell.*
-%{_libexecdir}/singularity/image-mount
-%{_libexecdir}/singularity/cli/singularity.help
-%{_libexecdir}/singularity/cli/start.*
-%{_libexecdir}/singularity/cli/stop.*
 %{_libexecdir}/singularity/cli/test.*
-%{_libexecdir}/singularity/get-section
+%{_libexecdir}/singularity/bin/action
+%{_libexecdir}/singularity/bin/start
+%{_libexecdir}/singularity/functions
+%{_libexecdir}/singularity/handlers
+%{_libexecdir}/singularity/image-handler.sh
 %dir %{_sysconfdir}/singularity
 %config(noreplace) %{_sysconfdir}/singularity/*
-%{_libdir}/libsingularity.so.*
-%exclude %{_libdir}/libsingularity.so
-%exclude %{_includedir}/singularity.h
-%{_libexecdir}/singularity/sexec
 %{_mandir}/man1/singularity.1*
 %dir %{_sysconfdir}/bash_completion.d
 %{_sysconfdir}/bash_completion.d/singularity
-%{_sharedstatedir}/singularity
+
+#SUID programs
+%attr(4755, root, root) %{_libexecdir}/singularity/bin/action-suid
+%attr(4755, root, root) %{_libexecdir}/singularity/bin/start-suid
+
+%files devel
+%defattr(-, root, root)
+%{_libdir}/singularity/lib*.so
+%{_libdir}/singularity/lib*.a
+%{_includedir}/singularity/*.h
 
 
 %changelog
+* Mon Apr 16 2018 Dave Dykstra <dwd@fnal.gov> - 2.4.6-1
+- Update to upstream version 2.4.6
+
 * Thu Aug 03 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.2.1-5
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Binutils_Mass_Rebuild
 
