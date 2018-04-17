@@ -34,9 +34,10 @@ License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Patch1: singularity-Python3.patch
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
-BuildRequires: python 
+BuildRequires: /usr/bin/python3
 BuildRequires: automake libtool
 %if "%{_target_vendor}" == "suse"
 Requires: squashfs
@@ -67,6 +68,7 @@ by the %{name} package.
 
 %prep
 %setup -q
+%patch1 -p0
 
 
 %build
