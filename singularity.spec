@@ -27,7 +27,7 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.4.6
+Version: 2.5.0
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
@@ -39,6 +39,7 @@ ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 BuildRequires: /usr/bin/python3
 BuildRequires: automake libtool
+BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
 Requires: squashfs
 %else
@@ -116,6 +117,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/bin/mount
 %{_libexecdir}/singularity/bin/image-type
 %{_libexecdir}/singularity/bin/prepheader
+%{_libexecdir}/singularity/bin/docker-extract
 
 # Directories
 %{_libexecdir}/singularity/bootstrap-scripts
@@ -143,6 +145,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/cli/test.*
 %{_libexecdir}/singularity/bin/action
 %{_libexecdir}/singularity/bin/start
+%{_libexecdir}/singularity/bin/docker-extract
 %{_libexecdir}/singularity/functions
 %{_libexecdir}/singularity/handlers
 %{_libexecdir}/singularity/image-handler.sh
@@ -164,6 +167,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Apr 27 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.0-1
+- Update to upstream version 2.5.0
+
 * Mon Apr 16 2018 Dave Dykstra <dwd@fnal.gov> - 2.4.6-1
 - Update to upstream version 2.4.6
 
