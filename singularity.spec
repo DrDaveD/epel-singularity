@@ -91,6 +91,8 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/singularity/lib*.la
 %clean
 rm -rf $RPM_BUILD_ROOT
 
+%{!?_licensedir:%global license %doc}
+
 %files
 %license LICENSE.md LICENSE-LBNL.md
 %doc examples CONTRIBUTORS.md CONTRIBUTING.md COPYRIGHT.md INSTALL.md LICENSE-LBNL.md LICENSE.md README.md
