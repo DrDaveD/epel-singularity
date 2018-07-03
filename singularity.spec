@@ -34,12 +34,16 @@ License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
-%if %{?__python3:1}%{!?__python3:0}
+%if %{?py3_dist:1}%{!?py3_dist:0}
 Patch1: singularity-Python3.patch
 %endif
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+%if %{?py3_dist:1}%{!?py3_dist:0}
 BuildRequires: /usr/bin/python3
+%else
+BuildRequires: python
+%endif
 BuildRequires: automake libtool
 BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
@@ -71,7 +75,7 @@ by the %{name} package.
 
 %prep
 %setup -q
-%if %{?__python3:1}%{!?__python3:0}
+%if %{?py3_dist:1}%{!?py3_dist:0}
 %patch1 -p0
 %endif
 
@@ -175,7 +179,7 @@ rm -rf $RPM_BUILD_ROOT
 - Update to upstream high severity security release 2.5.2.   See
   https://github.com/singularityware/singularity/releases/tag/2.5.2
   and CVE #2018-12021.
-- Only require python3 if __python3 macro defined
+- Only require python3 if %{py3_dist} macro defined
 
 * Fri May 04 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.1-1
 - Update to upstream version 2.5.1
