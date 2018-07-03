@@ -27,14 +27,16 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.5.1
+Version: 2.5.2
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+%if %{?__python3:1}%{!?__python3:0}
 Patch1: singularity-Python3.patch
+%endif
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 BuildRequires: /usr/bin/python3
@@ -69,7 +71,9 @@ by the %{name} package.
 
 %prep
 %setup -q
+%if %{?__python3:1}%{!?__python3:0}
 %patch1 -p0
+%endif
 
 
 %build
@@ -167,6 +171,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 03 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.2-1
+- Update to upstream high severity security release 2.5.2.   See
+  https://github.com/singularityware/singularity/releases/tag/2.5.2
+  and CVE #2018-12021.
+- Only require python3 if __python3 macro defined
+
 * Fri May 04 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.1-1
 - Update to upstream version 2.5.1
 
