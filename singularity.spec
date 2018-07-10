@@ -168,7 +168,6 @@ rm -rf $RPM_BUILD_ROOT
 %attr(4755, root, root) %{_libexecdir}/singularity/bin/start-suid
 
 %files devel
-%defattr(-, root, root)
 %{_libdir}/singularity/lib*.so
 %{_libdir}/singularity/lib*.a
 %{_includedir}/singularity/*.h
