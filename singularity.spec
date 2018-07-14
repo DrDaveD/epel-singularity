@@ -28,7 +28,7 @@
 Summary: Application and environment virtualization
 Name: singularity
 Version: 2.5.2
-Release: %{_rel}%{?dist}
+Release: %{_rel}%{?dist}.1
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
 Group: System Environment/Base
@@ -174,6 +174,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Sat Jul 14 2018 Fedora Release Engineering <releng@fedoraproject.org> - 2.5.2-1.1
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_29_Mass_Rebuild
+
 * Tue Jul 03 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.2-1
 - Update to upstream high severity security release 2.5.2.   See
   https://github.com/singularityware/singularity/releases/tag/2.5.2
