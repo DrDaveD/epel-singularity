@@ -23,27 +23,33 @@
 
 %global _hardened_build 1
 
-%{!?_rel:%{expand:%%global _rel 1}}
+%{!?_rel:%{expand:%%global _rel 1.1}}
+
+%if ! 0%{?osg}
+%define require_python3 1
+%else
+%define require_python3 0
+%endif
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.5.2
+Version: 2.5.99
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
-Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
-%if %{?py3_dist:1}%{!?py3_dist:0}
-Patch1: singularity-Python3.patch
+#Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Source: https://github.com/singularityware/singularity/releases/download/2.6.0-rc1/%{name}-%{version}.tar.gz
+%if %{require_python3}
+# from https://github.com/singularityware/singularity/pull/1762.patch
+Patch1: 1762.patch
 %endif
+# Not from https://github.com/singularityware/singularity/pull/1638.diff
+#  because that includes renames; instead, check out the PR and do git diff
+Patch2: 1638.diff
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
-%if %{?py3_dist:1}%{!?py3_dist:0}
-BuildRequires: /usr/bin/python3
-%else
-BuildRequires: python
-%endif
 BuildRequires: automake libtool
 BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
@@ -68,6 +74,11 @@ Development files for Singularity
 %package runtime
 Summary: Support for running Singularity containers
 Group: System Environment/Base
+%if %{require_python3}
+BuildRequires: /usr/bin/python3
+%else
+BuildRequires: python
+%endif
 
 %description runtime
 This package contains support for running containers created
@@ -75,15 +86,16 @@ by the %{name} package.
 
 %prep
 %setup -q
-%if %{?py3_dist:1}%{!?py3_dist:0}
-%patch1 -p0
+%if %{require_python3}
+%patch1 -p1
 %endif
+%patch2 -p1
 
 
 %build
-if [ ! -f configure ]; then
-  ./autogen.sh
-fi
+# always invoke even if configure exists, because the corresponding
+#  automake version may be wrong
+./autogen.sh
 
 %configure
 %{__make} %{?mflags}
@@ -152,6 +164,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/cli/shell.*
 %{_libexecdir}/singularity/cli/test.*
 %{_libexecdir}/singularity/bin/action
+%{_libexecdir}/singularity/bin/get-configvals
 %{_libexecdir}/singularity/bin/start
 %{_libexecdir}/singularity/bin/docker-extract
 %{_libexecdir}/singularity/functions
@@ -175,6 +188,16 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Jul 16 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.99-1.1
+- Update to upstream 2.5.99, which is tagged as 2.6.0-rc1.
+- Switch to using internally defined require_python3, which is true unless
+  %{osg} is defined, to decide whether or not to require python3.
+- Get python3 patch from PR #1762 instead of custom defined.
+- Move /usr/bin/python3 BuildRequires to singularity-runtime subpackage.
+- Apply PR #1638, which adds the underlay feature.
+
+- Only require python3 if %{py3_dist} macro defined
+
 * Tue Jul 03 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.2-1
 - Update to upstream high severity security release 2.5.2.   See
   https://github.com/singularityware/singularity/releases/tag/2.5.2
