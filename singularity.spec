@@ -23,7 +23,7 @@
 
 %global _hardened_build 1
 
-%{!?_rel:%{expand:%%global _rel 1.3}}
+%{!?_rel:%{expand:%%global _rel 1.4}}
 
 %if ! 0%{?osg}
 %define require_python3 1
@@ -81,13 +81,13 @@ Development files for Singularity
 Summary: Support for running Singularity containers
 Group: System Environment/Base
 
-%description runtime
-This package contains support for running containers created
-by the %{name} package.
-
 %if %{require_python3}
 Requires: /usr/bin/python3
 %endif
+
+%description runtime
+This package contains support for running containers created
+by the %{name} package.
 
 %prep
 %setup -q
@@ -192,6 +192,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.4
+- Move the Requires /usr/bin/python3 to be under %package runtime instead
+  of under its %description.
+
 * Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.3
 - Move the BuildRequires /usr/bin/python3 back to the primary package,
   because otherwise it doesn't get installed at build time.  Leave
