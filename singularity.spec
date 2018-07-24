@@ -23,7 +23,7 @@
 
 %global _hardened_build 1
 
-%{!?_rel:%{expand:%%global _rel 1.1}}
+%{!?_rel:%{expand:%%global _rel 1.2}}
 
 %if ! 0%{?osg}
 %define require_python3 1
@@ -50,12 +50,6 @@ Patch1: 1762.patch
 Patch2: 1638.diff
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
-%if %{require_python3}
-BuildRequires: /usr/bin/python3
-Requires: /usr/bin/python3
-%else
-BuildRequires: python
-%endif
 BuildRequires: automake libtool
 BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
@@ -84,6 +78,13 @@ Group: System Environment/Base
 %description runtime
 This package contains support for running containers created
 by the %{name} package.
+
+%if %{require_python3}
+BuildRequires: /usr/bin/python3
+Requires: /usr/bin/python3
+%else
+BuildRequires: python
+%endif
 
 %prep
 %setup -q
@@ -131,19 +132,14 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/cli/pull.*
 %{_libexecdir}/singularity/cli/selftest.*
 %{_libexecdir}/singularity/helpers
-%{_libexecdir}/singularity/python
 
 # Binaries
 %{_libexecdir}/singularity/bin/builddef
-%{_libexecdir}/singularity/bin/cleanupd
 %{_libexecdir}/singularity/bin/get-section
 %{_libexecdir}/singularity/bin/mount
 %{_libexecdir}/singularity/bin/image-type
 %{_libexecdir}/singularity/bin/prepheader
 %{_libexecdir}/singularity/bin/docker-extract
-
-# Directories
-%{_libexecdir}/singularity/bootstrap-scripts
 
 #SUID programs
 %attr(4755, root, root) %{_libexecdir}/singularity/bin/mount-suid
@@ -168,11 +164,14 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/cli/test.*
 %{_libexecdir}/singularity/bin/action
 %{_libexecdir}/singularity/bin/get-configvals
+%{_libexecdir}/singularity/bin/cleanupd
 %{_libexecdir}/singularity/bin/start
 %{_libexecdir}/singularity/bin/docker-extract
+%{_libexecdir}/singularity/bootstrap-scripts
 %{_libexecdir}/singularity/functions
 %{_libexecdir}/singularity/handlers
 %{_libexecdir}/singularity/image-handler.sh
+%{_libexecdir}/singularity/python
 %dir %{_sysconfdir}/singularity
 %config(noreplace) %{_sysconfdir}/singularity/*
 %{_mandir}/man1/singularity.1*
@@ -191,6 +190,14 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.2
+- Add PR #1324 which makes the docker:// and shub:// URLs work with only
+  the runtime subpackage.  All the changes are to this file so it does
+  not add a patch.  Moves python files to the runtime subpackage, so the
+  BuildRequires & Requires /usr/bin/python3 go back there as well.
+- Improve the underlay option comment in singularity.conf as found in
+  the current version of PR #1638.
+
 * Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.1
 - Update to upstream 2.5.999, which is tagged as 2.6.0-rc2.
 - Disable the underlay feature by default
