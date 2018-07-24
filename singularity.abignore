@@ -1,0 +1,4 @@
+[suppress_file]
+# suppress warnings on all shared objects in this package, because
+#  they are not used outside of the package
+file_name_regexp=.*

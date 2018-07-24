@@ -23,7 +23,7 @@
 
 %global _hardened_build 1
 
-%{!?_rel:%{expand:%%global _rel 1.2}}
+%{!?_rel:%{expand:%%global _rel 1.3}}
 
 %if ! 0%{?osg}
 %define require_python3 1
@@ -41,6 +41,7 @@ Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 #Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
 Source: https://github.com/singularityware/singularity/releases/download/2.6.0-rc1/%{name}-%{version}.tar.gz
+Source2: %{name}.abignore
 %if %{require_python3}
 # from https://github.com/singularityware/singularity/pull/1762.patch
 Patch1: 1762.patch
@@ -50,6 +51,11 @@ Patch1: 1762.patch
 Patch2: 1638.diff
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+%if %{require_python3}
+BuildRequires: /usr/bin/python3
+%else
+BuildRequires: python
+%endif
 BuildRequires: automake libtool
 BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
@@ -80,10 +86,7 @@ This package contains support for running containers created
 by the %{name} package.
 
 %if %{require_python3}
-BuildRequires: /usr/bin/python3
 Requires: /usr/bin/python3
-%else
-BuildRequires: python
 %endif
 
 %prep
@@ -106,6 +109,7 @@ BuildRequires: python
 %install
 %{__make} install DESTDIR=$RPM_BUILD_ROOT %{?mflags_install}
 rm -f $RPM_BUILD_ROOT/%{_libdir}/singularity/lib*.la
+install -m 644 %{SOURCE2} $RPM_BUILD_ROOT/%{_libdir}/singularity/
 
 %post runtime -p /sbin/ldconfig
 %postun runtime -p /sbin/ldconfig
@@ -139,7 +143,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/singularity/bin/mount
 %{_libexecdir}/singularity/bin/image-type
 %{_libexecdir}/singularity/bin/prepheader
-%{_libexecdir}/singularity/bin/docker-extract
 
 #SUID programs
 %attr(4755, root, root) %{_libexecdir}/singularity/bin/mount-suid
@@ -155,6 +158,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/singularity
 %{_bindir}/run-singularity
 %{_libdir}/singularity/lib*.so.*
+%{_libdir}/singularity/*.abignore
 %{_libexecdir}/singularity/cli/action_argparser.*
 %{_libexecdir}/singularity/cli/exec.*
 %{_libexecdir}/singularity/cli/help.*
@@ -190,6 +194,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.3
+- Move the BuildRequires /usr/bin/python3 back to the primary package,
+  because otherwise it doesn't get installed at build time.  Leave
+  the Requires on the runtime subpackage.
+- Add singularity.abignore to avoid warnings from abipkgdiff.
+
 * Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.2
 - Add PR #1324 which makes the docker:// and shub:// URLs work with only
   the runtime subpackage.  All the changes are to this file so it does
