@@ -33,7 +33,7 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.5.99
+Version: 2.5.999
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
@@ -50,6 +50,12 @@ Patch1: 1762.patch
 Patch2: 1638.diff
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
+%if %{require_python3}
+BuildRequires: /usr/bin/python3
+Requires: /usr/bin/python3
+%else
+BuildRequires: python
+%endif
 BuildRequires: automake libtool
 BuildRequires: libarchive-devel
 %if "%{_target_vendor}" == "suse"
@@ -74,11 +80,6 @@ Development files for Singularity
 %package runtime
 Summary: Support for running Singularity containers
 Group: System Environment/Base
-%if %{require_python3}
-BuildRequires: /usr/bin/python3
-%else
-BuildRequires: python
-%endif
 
 %description runtime
 This package contains support for running containers created
@@ -190,6 +191,13 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.1
+- Update to upstream 2.5.999, which is tagged as 2.6.0-rc2.
+- Disable the underlay feature by default
+- Move the BuildRequires: /usr/bin/python3 back to the singularity package
+  because there is no python in singularity-runtime.
+- Add an additional Requires: /usr/bin/python3 for install time.
+
 * Mon Jul 16 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.99-1.1
 - Update to upstream 2.5.99, which is tagged as 2.6.0-rc1.
 - Switch to using internally defined require_python3, which is true unless
