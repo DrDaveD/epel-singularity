@@ -1,5 +1,5 @@
 diff --git a/configure.ac b/configure.ac
-index 2a47c88..75f652b 100644
+index 1b73451..8bc2e55 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -404,7 +404,6 @@ AC_CONFIG_FILES([
@@ -617,13 +617,13 @@ index c2c9fd0..3404e12 100644
  #endif /* __SINGULARITY_RUNTIME_MOUNT_CWD_H */
  
 diff --git a/src/lib/runtime/mounts/dev/dev.c b/src/lib/runtime/mounts/dev/dev.c
-index 449f7cc..c1e2575 100644
+index 7dc7a76..cbd6f19 100644
 --- a/src/lib/runtime/mounts/dev/dev.c
 +++ b/src/lib/runtime/mounts/dev/dev.c
-@@ -42,14 +42,14 @@
- #include "util/config_parser.h"
+@@ -43,14 +43,14 @@
  #include "util/registry.h"
  #include "util/mount.h"
+ #include "util/suid.h"
 +#include "util/mountlist.h"
  
  #include "../../runtime.h"
@@ -637,7 +637,7 @@ index 449f7cc..c1e2575 100644
  
      if ( ( singularity_registry_get("CONTAIN") != NULL ) || ( strcmp("minimal", singularity_config_get_value(MOUNT_DEV)) == 0 ) ) {
          char *sessiondir = singularity_registry_get("SESSIONDIR");
-@@ -57,22 +57,6 @@ int _singularity_runtime_mount_dev(void) {
+@@ -58,22 +58,6 @@ int _singularity_runtime_mount_dev(void) {
          char *nvopt = singularity_registry_get("NV"); 
          char memfs_type[] = "tmpfs";
  
@@ -660,8 +660,8 @@ index 449f7cc..c1e2575 100644
          singularity_message(DEBUG, "Creating temporary staged /dev\n");
          if ( container_mkpath_nopriv(devdir, 0755) != 0 ) {
              singularity_message(ERROR, "Failed creating the session device directory %s: %s\n", devdir, strerror(errno));
-@@ -212,31 +196,18 @@ int _singularity_runtime_mount_dev(void) {
-             free(devpts_opts);
+@@ -220,31 +204,18 @@ int _singularity_runtime_mount_dev(void) {
+                 free(devpts_opts);
          }
  
 -        singularity_message(DEBUG, "Mounting minimal staged /dev into container\n");
@@ -1152,7 +1152,7 @@ index 0000000..485a87d
 +}
 diff --git a/src/lib/runtime/mounts/domounts/domounts.h b/src/lib/runtime/mounts/domounts/domounts.h
 new file mode 100644
-index 0000000..233eb58
+index 0000000..d7464b2
 --- /dev/null
 +++ b/src/lib/runtime/mounts/domounts/domounts.h
 @@ -0,0 +1,33 @@
@@ -1179,18 +1179,18 @@ index 0000000..233eb58
 + * 
 +*/
 +
-+#ifndef __SINGULARITY_RUNTIME_MOUNT_H_
-+#define __SINGULARITY_RUNTIME_MOUNT_H_
++#ifndef __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H_
++#define __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H_
 +
 +struct mountlist;
 +
 +extern int _singularity_runtime_domounts_init(struct mountlist *mountlist);
 +extern int _singularity_runtime_domounts(struct mountlist *mountlist);
 +
-+#endif /* __SINGULARITY_RUNTIME_MOUNT_H */
++#endif /* __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H */
 +
 diff --git a/src/lib/runtime/mounts/home/home.c b/src/lib/runtime/mounts/home/home.c
-index eec2aa1..3895374 100644
+index 665d256..c05c216 100644
 --- a/src/lib/runtime/mounts/home/home.c
 +++ b/src/lib/runtime/mounts/home/home.c
 @@ -39,15 +39,15 @@
@@ -1209,9 +1209,9 @@ index eec2aa1..3895374 100644
      char *session_dir = singularity_registry_get("SESSIONDIR");
 -    char *container_dir = CONTAINER_FINALDIR;
  
- 
      singularity_message(DEBUG, "Checking that home directry is configured: %s\n", home_dest);
-@@ -81,12 +81,6 @@ int _singularity_runtime_mount_home(void) {
+     if ( home_dest == NULL ) {
+@@ -83,12 +83,6 @@ int _singularity_runtime_mount_home(void) {
          ABORT(255);
      }
  
@@ -1224,7 +1224,7 @@ index eec2aa1..3895374 100644
      singularity_message(DEBUG, "Creating temporary directory to stage home: %s\n", joinpath(session_dir, home_dest));
      if ( container_mkpath_nopriv(joinpath(session_dir, home_dest), 0755) < 0 ) {
          singularity_message(ERROR, "Failed creating home directory stage %s: %s\n", joinpath(session_dir, home_dest), strerror(errno));
-@@ -110,8 +104,9 @@ int _singularity_runtime_mount_home(void) {
+@@ -112,8 +106,9 @@ int _singularity_runtime_mount_home(void) {
          singularity_message(VERBOSE, "Using sessiondir for home directory\n");
      }
  
@@ -1236,7 +1236,7 @@ index eec2aa1..3895374 100644
          char *homedir_base;
  
          singularity_message(DEBUG, "Staging home directory base\n");
-@@ -122,33 +117,12 @@ int _singularity_runtime_mount_home(void) {
+@@ -124,33 +119,12 @@ int _singularity_runtime_mount_home(void) {
              ABORT(255);
          }
  
@@ -1290,7 +1290,7 @@ index a150177..2553d75 100644
  #endif /* __SINGULARITY_RUNTIME_MOUNT_HOME_H */
  
 diff --git a/src/lib/runtime/mounts/hostfs/hostfs.c b/src/lib/runtime/mounts/hostfs/hostfs.c
-index 2040d53..19d1208 100644
+index 2040d53..a56c5cc 100644
 --- a/src/lib/runtime/mounts/hostfs/hostfs.c
 +++ b/src/lib/runtime/mounts/hostfs/hostfs.c
 @@ -37,20 +37,18 @@
@@ -1336,7 +1336,7 @@ index 2040d53..19d1208 100644
              continue;
          }
          if ( strcmp(mountpoint, CONTAINER_MOUNTDIR) == 0 ) {
-@@ -149,36 +147,9 @@ int _singularity_runtime_mount_hostfs(void) {
+@@ -149,37 +147,9 @@ int _singularity_runtime_mount_hostfs(void) {
              singularity_message(DEBUG, "Skipping ramfs file system: %s,%s,%s\n", source, mountpoint, filesystem);
              continue;
          }
@@ -1357,7 +1357,7 @@ index 2040d53..19d1208 100644
 -                continue;
 -            }
 -        }
- 
+-
 -
 -        singularity_message(VERBOSE, "Binding '%s'(%s) to '%s/%s'\n", mountpoint, filesystem, container_dir, mountpoint);
 -        if ( singularity_mount(mountpoint, joinpath(container_dir, mountpoint), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
@@ -1370,11 +1370,12 @@ index 2040d53..19d1208 100644
 -                ABORT(255);
 -            }
 -        }
+ 
 +        singularity_message(VERBOSE, "Queuing bind mount of '%s'(%s) to '%s'\n", mountpoint, filesystem, mountpoint);
 +        mountlist_add(mountlist, NULL, strdup(mountpoint), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
- 
      }
  
+     free(line);
 diff --git a/src/lib/runtime/mounts/hostfs/hostfs.h b/src/lib/runtime/mounts/hostfs/hostfs.h
 index 9d9f6ab..62617a1 100644
 --- a/src/lib/runtime/mounts/hostfs/hostfs.h
@@ -2135,7 +2136,7 @@ index ad58525..7a78e4f 100644
  			 privilege.h \
  			 registry.c \
 diff --git a/src/util/config_defaults.h.in b/src/util/config_defaults.h.in
-index 6bfeb78..4ee2075 100644
+index 6bfeb78..b1676f8 100644
 --- a/src/util/config_defaults.h.in
 +++ b/src/util/config_defaults.h.in
 @@ -41,6 +41,9 @@
@@ -2143,7 +2144,7 @@ index 6bfeb78..4ee2075 100644
  #define ENABLE_OVERLAY_DEFAULT "try"
  
 +#define ENABLE_UNDERLAY "enable underlay"
-+#define ENABLE_UNDERLAY_DEFAULT "yes"
++#define ENABLE_UNDERLAY_DEFAULT "no"
 +
  #define CONFIG_PASSWD "config passwd"
  #define CONFIG_PASSWD_DEFAULT 1
