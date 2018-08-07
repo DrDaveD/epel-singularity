@@ -1,28 +1,28 @@
-From e2d8d4be0e744f6903b71d2485cc0dcd6da7de1b Mon Sep 17 00:00:00 2001
+From 08ad53f2bdb8ef3a1cc02ff8a423d5a6da434dff Mon Sep 17 00:00:00 2001
 From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
 Date: Sun, 15 Jul 2018 14:43:57 -0500
 Subject: [PATCH] prefer python3 if present
 
 ---
- configure.ac                              | 29 +++++++++++++++++++----------
- etc/configure_transform.py                |  9 ++++++++-
- libexec/helpers/checks/1-bash-hiddens.py  | 10 +++++++++-
- libexec/helpers/checks/1-cache-content.py | 10 +++++++++-
- libexec/helpers/checks/1-docker.py        | 10 +++++++++-
- libexec/helpers/checks/3-cve.py           | 10 +++++++++-
- libexec/python/helpers/json/add.py        | 10 +++++++++-
- libexec/python/helpers/json/delete.py     | 10 +++++++++-
- libexec/python/helpers/json/dump.py       | 10 +++++++++-
- libexec/python/helpers/json/get.py        | 10 +++++++++-
- libexec/python/helpers/json/inspect.py    | 10 +++++++++-
- libexec/python/import.py                  | 10 +++++++++-
- libexec/python/pull.py                    | 10 +++++++++-
- libexec/python/shub/api.py                | 10 +++++++++-
- libexec/python/size.py                    | 10 +++++++++-
+ configure.ac                              | 29 +++++++++++++++--------
+ etc/configure_transform.py                |  9 ++++++-
+ libexec/helpers/checks/1-bash-hiddens.py  | 10 +++++++-
+ libexec/helpers/checks/1-cache-content.py | 10 +++++++-
+ libexec/helpers/checks/1-docker.py        | 10 +++++++-
+ libexec/helpers/checks/3-cve.py           | 10 +++++++-
+ libexec/python/helpers/json/add.py        | 10 +++++++-
+ libexec/python/helpers/json/delete.py     | 10 +++++++-
+ libexec/python/helpers/json/dump.py       | 10 +++++++-
+ libexec/python/helpers/json/get.py        | 10 +++++++-
+ libexec/python/helpers/json/inspect.py    | 10 +++++++-
+ libexec/python/import.py                  | 10 +++++++-
+ libexec/python/pull.py                    | 10 +++++++-
+ libexec/python/shub/api.py                | 10 +++++++-
+ libexec/python/size.py                    | 10 +++++++-
  15 files changed, 144 insertions(+), 24 deletions(-)
 
 diff --git a/configure.ac b/configure.ac
-index 2a47c8846..6f80f48cd 100644
+index b4c76cda3..836fb44bf 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -299,23 +299,32 @@ AM_COND_IF([FOUND_MKSQUASHFS],,[AC_MSG_WARN([mksquashfs not found - needed at ru
