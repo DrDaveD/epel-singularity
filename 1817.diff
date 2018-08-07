@@ -1,0 +1,2319 @@
+diff --git a/configure.ac b/configure.ac
+index 1b73451..8bc2e55 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -404,7 +404,6 @@ AC_CONFIG_FILES([
+    src/lib/runtime/files/group/Makefile
+    src/lib/runtime/files/passwd/Makefile
+    src/lib/runtime/files/resolvconf/Makefile
+-   src/lib/runtime/files/libs/Makefile
+    src/lib/runtime/mounts/Makefile
+    src/lib/runtime/mounts/cwd/Makefile
+    src/lib/runtime/mounts/dev/Makefile
+@@ -412,9 +411,11 @@ AC_CONFIG_FILES([
+    src/lib/runtime/mounts/home/Makefile
+    src/lib/runtime/mounts/hostfs/Makefile
+    src/lib/runtime/mounts/kernelfs/Makefile
++   src/lib/runtime/mounts/libs/Makefile
+    src/lib/runtime/mounts/tmp/Makefile
+    src/lib/runtime/mounts/userbinds/Makefile
+    src/lib/runtime/mounts/scratch/Makefile
++   src/lib/runtime/mounts/domounts/Makefile
+    src/lib/runtime/enter/Makefile
+    src/lib/runtime/enter/chroot/Makefile
+    src/lib/runtime/environment/Makefile
+diff --git a/etc/singularity.conf.in b/etc/singularity.conf.in
+index ecfff37..61a9cbd 100644
+--- a/etc/singularity.conf.in
++++ b/etc/singularity.conf.in
+@@ -137,6 +137,14 @@ bind path = /etc/hosts
+ @ENABLE_OVERLAY@ = @ENABLE_OVERLAY_DEFAULT@
+ 
+ 
++# ENABLE UNDERLAY: [yes/no]
++# DEFAULT: @ENABLE_UNDERLAY_DEFAULT@
++# Enabling this option will make it possible to specify bind paths to locations
++# that do not currently exist within the container, similar to the overlay
++# option.  This will only be used if overlay is not enabled.
++@ENABLE_UNDERLAY@ = @ENABLE_UNDERLAY_DEFAULT@
++
++
+ # MOUNT SLAVE: [BOOL]
+ # DEFAULT: @MOUNT_SLAVE_DEFAULT@
+ # Should we automatically propagate file-system changes from the host?
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 9cb40b6..e1eff01 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -15,7 +15,7 @@ EXTRA_PROGRAMS = action-suid mount-suid start-suid
+ cleanupd_SOURCES = cleanupd.c util/util.c util/file.c util/message.c util/privilege.c util/config_parser.c util/registry.c
+ cleanupd_CPPFLAGS = $(AM_CPPFLAGS)
+ 
+-action_SOURCES = action.c util/util.c util/file.c util/registry.c util/privilege.c util/sessiondir.c util/suid.c util/cleanupd.c util/daemon.c util/mount.c
++action_SOURCES = action.c util/util.c util/file.c util/registry.c util/privilege.c util/sessiondir.c util/suid.c util/cleanupd.c util/daemon.c util/mount.c util/mountlist.c
+ action_LDADD = lib/image/libsingularity-image.la lib/runtime/libsingularity-runtime.la action-lib/libinternal.la
+ action_CPPFLAGS = $(AM_CPPFLAGS)
+ 
+@@ -24,7 +24,7 @@ builddef_LDADD = lib/image/libsingularity-image.la lib/runtime/libsingularity-ru
+ builddef_CPPFLAGS = $(AM_CPPFLAGS)
+ builddef_LDFLAGS = -static
+ 
+-start_SOURCES = start.c util/util.c util/file.c util/registry.c util/privilege.c util/sessiondir.c util/suid.c util/cleanupd.c util/fork.c util/daemon.c util/signal.c util/mount.c
++start_SOURCES = start.c util/util.c util/file.c util/registry.c util/privilege.c util/sessiondir.c util/suid.c util/cleanupd.c util/fork.c util/daemon.c util/signal.c util/mount.c util/mountlist.c
+ start_LDADD = lib/image/libsingularity-image.la lib/runtime/libsingularity-runtime.la action-lib/libinternal.la
+ start_CPPFLAGS = $(AM_CPPFLAGS)
+ 
+@@ -33,7 +33,7 @@ docker_extract_LDADD = -larchive
+ docker_extract_CPPFLAGS = $(AM_CPPFLAGS)
+ docker_extract_LDFLAGS = -static
+ 
+-mount_SOURCES = mount.c util/util.c util/file.c util/registry.c util/suid.c util/privilege.c util/mount.c
++mount_SOURCES = mount.c util/util.c util/file.c util/registry.c util/suid.c util/privilege.c util/mount.c util/mountlist.c
+ mount_LDADD = lib/image/libsingularity-image.la lib/runtime/libsingularity-runtime.la
+ mount_CPPFLAGS = $(AM_CPPFLAGS)
+ 
+diff --git a/src/lib/image/Makefile.am b/src/lib/image/Makefile.am
+index 81e7161..44cfb42 100644
+--- a/src/lib/image/Makefile.am
++++ b/src/lib/image/Makefile.am
+@@ -13,7 +13,7 @@ distincludedir = $(includedir)/singularity
+ noinst_LTLIBRARIES = libimage.la
+ #libimage_la_LIBADD = bind/libinternal.la create/libinternal.la check/libinternal.la expand/libinternal.la mount/libinternal.la offset/libinternal.la open/libinternal.la ext3/libinternal.la dir/libinternal.la squashfs/libinternal.la
+ libimage_la_LIBADD = ext3/libinternal.la dir/libinternal.la squashfs/libinternal.la
+-libimage_la_SOURCES = image.c bind.c ../../util/registry.c ../../util/message.c ../../util/config_parser.c ../../util/privilege.c ../../util/util.c ../../util/file.c ../../util/suid.c ../../util/mount.c
++libimage_la_SOURCES = image.c bind.c ../../util/registry.c ../../util/message.c ../../util/config_parser.c ../../util/privilege.c ../../util/util.c ../../util/file.c ../../util/suid.c ../../util/mount.c ../../util/mountlist.c
+ libimage_la_CFLAGS = $(AM_CFLAGS) # This fixes duplicate sources in library and progs
+ 
+ distinclude_HEADERS = image.h bind.h
+diff --git a/src/lib/runtime/Makefile.am b/src/lib/runtime/Makefile.am
+index ed83005..d292cca 100644
+--- a/src/lib/runtime/Makefile.am
++++ b/src/lib/runtime/Makefile.am
+@@ -11,7 +11,7 @@ distincludedir = $(includedir)/singularity
+ 
+ noinst_LTLIBRARIES = libinternal.la
+ libinternal_la_LIBADD = ns/libinternal.la mounts/libinternal.la files/libinternal.la enter/libinternal.la overlayfs/libinternal.la environment/libinternal.la autofs/libinternal.la
+-libinternal_la_SOURCES = runtime.c ../../util/fork.c ../../util/registry.c ../../util/message.c ../../util/config_parser.c ../../util/privilege.c ../../util/util.c ../../util/file.c ../../util/setns.c ../../util/mount.c ../../util/cleanupd.c ../../util/sessiondir.c ../../action-lib/ready.c
++libinternal_la_SOURCES = runtime.c ../../util/fork.c ../../util/registry.c ../../util/message.c ../../util/config_parser.c ../../util/privilege.c ../../util/util.c ../../util/file.c ../../util/setns.c ../../util/mount.c ../../util/cleanupd.c ../../util/sessiondir.c ../../action-lib/ready.c ../../util/mountlist.c
+ libinternal_la_CFLAGS = $(AM_CFLAGS) # This fixes duplicate sources in library and progs
+ 
+ distinclude_HEADERS = runtime.h
+diff --git a/src/lib/runtime/files/Makefile.am b/src/lib/runtime/files/Makefile.am
+index 017c0ee..c2551ce 100644
+--- a/src/lib/runtime/files/Makefile.am
++++ b/src/lib/runtime/files/Makefile.am
+@@ -1,4 +1,4 @@
+-SUBDIRS = passwd group resolvconf libs
++SUBDIRS = passwd group resolvconf
+ 
+ MAINTAINERCLEANFILES = Makefile.in
+ DISTCLEANFILES = Makefile
+@@ -11,7 +11,7 @@ AM_CPPFLAGS = -DSYSCONFDIR=\"$(sysconfdir)\" -DLOCALSTATEDIR=\"$(localstatedir)\
+ 
+ noinst_LTLIBRARIES = libinternal.la
+ 
+-libinternal_la_LIBADD = passwd/libinternal.la group/libinternal.la resolvconf/libinternal.la libs/libinternal.la
++libinternal_la_LIBADD = passwd/libinternal.la group/libinternal.la resolvconf/libinternal.la
+ libinternal_la_SOURCES = files.c file-bind.c
+ 
+ EXTRA_DIST = file-bind.h files.h
+diff --git a/src/lib/runtime/files/files.c b/src/lib/runtime/files/files.c
+index 434d53c..915f81a 100644
+--- a/src/lib/runtime/files/files.c
++++ b/src/lib/runtime/files/files.c
+@@ -36,7 +36,6 @@
+ #include "./passwd/passwd.h"
+ #include "./group/group.h"
+ #include "./resolvconf/resolvconf.h"
+-#include "./libs/libs.h"
+ 
+ 
+ int _singularity_runtime_files(void) {
+@@ -46,7 +45,6 @@ int _singularity_runtime_files(void) {
+     retval += _singularity_runtime_files_passwd();
+     retval += _singularity_runtime_files_group();
+     retval += _singularity_runtime_files_resolvconf();
+-    retval += _singularity_runtime_files_libs();
+ 
+     return(retval);
+ }
+diff --git a/src/lib/runtime/files/libs/Makefile.am b/src/lib/runtime/files/libs/Makefile.am
+deleted file mode 100644
+index f54f504..0000000
+--- a/src/lib/runtime/files/libs/Makefile.am
++++ /dev/null
+@@ -1,12 +0,0 @@
+-MAINTAINERCLEANFILES = Makefile.in 
+-DISTCLEANFILES = Makefile
+-CLEANFILES = core.* *~ *.la
+-
+-AM_CFLAGS = -Wall -fpie
+-AM_LDFLAGS = -pie
+-AM_CPPFLAGS = -DSYSCONFDIR=\"$(sysconfdir)\" -DLOCALSTATEDIR=\"$(localstatedir)\" -DLIBEXECDIR=\"$(libexecdir)\" $(SINGULARITY_DEFINES)
+-
+-noinst_LTLIBRARIES = libinternal.la
+-libinternal_la_SOURCES = libs.c
+-
+-EXTRA_DIST = libs.h
+diff --git a/src/lib/runtime/files/libs/libs.c b/src/lib/runtime/files/libs/libs.c
+deleted file mode 100644
+index 4ba6f78..0000000
+--- a/src/lib/runtime/files/libs/libs.c
++++ /dev/null
+@@ -1,169 +0,0 @@
+-/* 
+- * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
+- * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
+- *
+- * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
+- * 
+- * Copyright (c) 2016-2017, The Regents of the University of California,
+- * through Lawrence Berkeley National Laboratory (subject to receipt of any
+- * required approvals from the U.S. Dept. of Energy).  All rights reserved.
+- * 
+- * This software is licensed under a customized 3-clause BSD license.  Please
+- * consult LICENSE file distributed with the sources of this project regarding
+- * your rights to use or distribute this software.
+- * 
+- * NOTICE.  This Software was developed under funding from the U.S. Department of
+- * Energy and the U.S. Government consequently retains certain rights. As such,
+- * the U.S. Government has been granted for itself and others acting on its
+- * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+- * to reproduce, distribute copies to the public, prepare derivative works, and
+- * perform publicly and display publicly, and to permit other to do so. 
+- * 
+-*/
+-
+-#ifndef _GNU_SOURCE
+-#define _GNU_SOURCE
+-#endif
+-
+-#include <errno.h>
+-#include <fcntl.h>
+-#include <stdio.h>
+-#include <string.h>
+-#include <sys/mount.h>
+-#include <sys/stat.h>
+-#include <unistd.h>
+-#include <stdlib.h>
+-#include <libgen.h>
+-#include <linux/limits.h>
+-
+-#include "config.h"
+-#include "util/file.h"
+-#include "util/util.h"
+-#include "util/message.h"
+-#include "util/privilege.h"
+-#include "util/config_parser.h"
+-#include "util/registry.h"
+-#include "util/mount.h"
+-
+-#include "../file-bind.h"
+-#include "../../runtime.h"
+-
+-
+-int _singularity_runtime_files_libs(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
+-    char *tmpdir = singularity_registry_get("SESSIONDIR");
+-    char *includelibs_string;
+-    char *libdir = joinpath(tmpdir, "/libs");
+-    char *libdir_contained = joinpath(container_dir, "/.singularity.d/libs");
+-
+-    if ( ( includelibs_string = singularity_registry_get("CONTAINLIBS") ) != NULL ) {
+-        char *tok = NULL;
+-        char *current = strtok_r(strdup(includelibs_string), ",", &tok);
+-
+-        singularity_message(DEBUG, "Parsing SINGULARITY_CONTAINLIBS for user-specified libraries to include.\n");
+-
+-        free(includelibs_string);
+-
+-        singularity_message(DEBUG, "Checking if libdir in container exists: %s\n", libdir_contained);
+-        if ( is_dir(libdir_contained) != 0 ) {
+-            singularity_message(WARNING, "Library bind directory not present in container, update container\n");
+-        }
+-
+-        singularity_message(DEBUG, "Creating session libdir at: %s\n", libdir);
+-        if ( container_mkpath_nopriv(libdir, 0755) != 0 ) {
+-            singularity_message(ERROR, "Failed creating temp lib directory at: %s\n", libdir);
+-            ABORT(255);
+-        }
+-
+-        while (current != NULL ) {
+-            char *dest = NULL;
+-            char *source = NULL;
+-
+-            singularity_message(DEBUG, "Evaluating requested library path: %s\n", current);
+-
+-            dest = joinpath(libdir, basename(current));
+-
+-            if ( is_file(dest) == 0 ) {
+-                singularity_message(VERBOSE3, "Staged library exists, skipping: %s\n", current);
+-                current = strtok_r(NULL, ",", &tok);
+-                continue;
+-            }
+-
+-            if ( is_link(current) == 0 ) {
+-                char *link_name;
+-                ssize_t len;
+-
+-                link_name = (char *) malloc(PATH_MAX);
+-
+-                len = readlink(current, link_name, PATH_MAX-1); // Flawfinder: ignore
+-                if ( ( len > 0 ) && ( len <= PATH_MAX) ) {
+-                    link_name[len] = '\0';
+-                    singularity_message(VERBOSE3, "Found library link source: %s -> %s\n", current, link_name);
+-                    if ( link_name[0] == '/' ) {
+-                        source = strdup(link_name);
+-                    } else {
+-                        if ( link_name[0] == '/' ) {
+-                            source = strdup(link_name);
+-                        } else {
+-                            source = joinpath(dirname(strdup(current)), link_name);
+-                        }
+-                    }
+-                } else {
+-                    singularity_message(WARNING, "Failed reading library link for %s: %s\n", current, strerror(errno));
+-                    ABORT(255);
+-                }
+-                free(link_name);
+-
+-            } else if (is_file(current) == 0 ) {
+-                source = strdup(current);
+-                singularity_message(VERBOSE3, "Found library source: %s\n", source);
+-            } else {
+-                singularity_message(WARNING, "Could not find library: %s\n", current);
+-                current = strtok_r(NULL, ",", &tok);
+-                continue;
+-            }
+-
+-            singularity_message(DEBUG, "Binding library source here: %s -> %s\n", source, dest);
+-
+-            if ( fileput_nopriv(dest, "") != 0 ) {
+-                singularity_message(ERROR, "Failed creating file at %s: %s\n", dest, strerror(errno));
+-                ABORT(255);
+-            }
+-
+-            singularity_message(VERBOSE, "Binding file '%s' to '%s'\n", source, dest);
+-            if ( singularity_mount(source, dest, NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "There was an error binding %s to %s: %s\n", source, dest, strerror(errno));
+-                    ABORT(255);
+-            }
+-
+-            free(source);
+-            free(dest);
+-            current = strtok_r(NULL, ",", &tok);
+-        }
+-
+-        if ( is_dir(libdir_contained) != 0 ) {
+-            char *ld_path;
+-            singularity_message(DEBUG, "Attempting to create contained libdir\n");
+-            if ( container_mkpath_priv(libdir_contained, 0755) != 0 ) {
+-                singularity_message(ERROR, "Failed creating directory %s :%s\n", libdir_contained, strerror(errno));
+-                ABORT(255);
+-            }
+-            ld_path = envar_path("LD_LIBRARY_PATH");
+-            if ( ld_path == NULL ) {
+-                singularity_message(DEBUG, "Setting LD_LIBRARY_PATH to '/.singularity.d/libs'\n");
+-                envar_set("LD_LIBRARY_PATH", "/.singularity.d/libs", 1);
+-            } else {
+-                singularity_message(DEBUG, "Prepending '/.singularity.d/libs' to LD_LIBRARY_PATH\n");
+-                envar_set("LD_LIBRARY_PATH", strjoin("/.singularity.d/libs:", ld_path), 1);
+-            }
+-        }
+-
+-        singularity_message(VERBOSE, "Binding libdir '%s' to '%s'\n", libdir, libdir_contained);
+-        if ( singularity_mount(libdir, libdir_contained, NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-                singularity_message(ERROR, "There was an error binding %s to %s: %s\n", libdir, libdir_contained, strerror(errno));
+-                ABORT(255);
+-        }
+-    }
+-
+-    return(0);
+-}
+diff --git a/src/lib/runtime/files/libs/libs.h b/src/lib/runtime/files/libs/libs.h
+deleted file mode 100644
+index e5f843d..0000000
+--- a/src/lib/runtime/files/libs/libs.h
++++ /dev/null
+@@ -1,30 +0,0 @@
+-/* 
+- * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
+- * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
+- *
+- * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
+- * 
+- * Copyright (c) 2016-2017, The Regents of the University of California,
+- * through Lawrence Berkeley National Laboratory (subject to receipt of any
+- * required approvals from the U.S. Dept. of Energy).  All rights reserved.
+- * 
+- * This software is licensed under a customized 3-clause BSD license.  Please
+- * consult LICENSE file distributed with the sources of this project regarding
+- * your rights to use or distribute this software.
+- * 
+- * NOTICE.  This Software was developed under funding from the U.S. Department of
+- * Energy and the U.S. Government consequently retains certain rights. As such,
+- * the U.S. Government has been granted for itself and others acting on its
+- * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+- * to reproduce, distribute copies to the public, prepare derivative works, and
+- * perform publicly and display publicly, and to permit other to do so. 
+- * 
+-*/
+-
+-#ifndef __SINGULARITY_RUNTIME_FILES_LIBS_H_
+-#define __SINGULARITY_RUNTIME_FILES_LIBS_H_
+-
+-extern int _singularity_runtime_files_libs(void);
+-
+-#endif /* __SINGULARITY_RUNTIME_FILES_LIBS_H */
+-
+diff --git a/src/lib/runtime/mounts/Makefile.am b/src/lib/runtime/mounts/Makefile.am
+index f945dc2..8ec7c7f 100644
+--- a/src/lib/runtime/mounts/Makefile.am
++++ b/src/lib/runtime/mounts/Makefile.am
+@@ -1,4 +1,4 @@
+-SUBDIRS = binds cwd dev home hostfs kernelfs scratch tmp userbinds
++SUBDIRS = binds cwd dev domounts home hostfs kernelfs libs scratch tmp userbinds
+ 
+ MAINTAINERCLEANFILES = Makefile.in
+ DISTCLEANFILES = Makefile
+@@ -11,7 +11,7 @@ AM_CPPFLAGS = -DSYSCONFDIR=\"$(sysconfdir)\" -DLOCALSTATEDIR=\"$(localstatedir)\
+ 
+ noinst_LTLIBRARIES = libinternal.la
+ 
+-libinternal_la_LIBADD = binds/libinternal.la cwd/libinternal.la dev/libinternal.la home/libinternal.la hostfs/libinternal.la kernelfs/libinternal.la scratch/libinternal.la tmp/libinternal.la userbinds/libinternal.la
++libinternal_la_LIBADD = binds/libinternal.la cwd/libinternal.la dev/libinternal.la domounts/libinternal.la home/libinternal.la hostfs/libinternal.la kernelfs/libinternal.la libs/libinternal.la scratch/libinternal.la tmp/libinternal.la userbinds/libinternal.la
+ libinternal_la_SOURCES = mounts.c
+ 
+ EXTRA_DIST = mounts.h
+diff --git a/src/lib/runtime/mounts/binds/binds.c b/src/lib/runtime/mounts/binds/binds.c
+index f27323b..4865aea 100644
+--- a/src/lib/runtime/mounts/binds/binds.c
++++ b/src/lib/runtime/mounts/binds/binds.c
+@@ -35,17 +35,17 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
+-#include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_binds(void) {
++int _singularity_runtime_mount_binds(struct mountlist *mountlist) {
+     char *tmp_config_string;
+-    char *container_dir = CONTAINER_FINALDIR;
++    char *source = NULL;
++    char *dest = NULL;
+ 
+     if ( singularity_registry_get("CONTAIN") != NULL ) {
+         singularity_message(DEBUG, "Skipping bind mounts as contain was requested\n");
+@@ -60,14 +60,21 @@ int _singularity_runtime_mount_binds(void) {
+     while ( *tmp_config_string_list != NULL ) {
+         tmp_config_string = strdup(*tmp_config_string_list);
+         tmp_config_string_list++;
+-        char *source = strtok(tmp_config_string, ":");
+-        char *dest = strtok(NULL, ":");
++        if (source != NULL)
++            free(source);
++        if (dest != NULL)
++            free(dest);
++        source = strtok(tmp_config_string, ":");
++        dest = strtok(NULL, ":");
++        source = strdup(source);
+         chomp(source);
+         if ( dest == NULL ) {
+             dest = strdup(source);
+         } else {
++            dest = strdup(dest);
+             chomp(dest);
+         }
++        free(tmp_config_string);
+ 
+         singularity_message(VERBOSE2, "Found 'bind path' = %s, %s\n", source, dest);
+ 
+@@ -76,62 +83,17 @@ int _singularity_runtime_mount_binds(void) {
+             continue;
+         }
+ 
+-        singularity_message(DEBUG, "Checking if bind point is already mounted: %s\n", dest);
+-        if ( check_mounted(dest) >= 0 ) {
+-            singularity_message(VERBOSE, "Not mounting bind point (already mounted): %s\n", dest);
+-            continue;
+-        }
+-
+-        if ( ( is_file(source) == 0 ) && ( is_file(joinpath(container_dir, dest)) < 0 ) ) {
+-            if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                char *basedir = dirname(joinpath(container_dir, dest));
+-
+-                singularity_message(DEBUG, "Checking base directory for file %s ('%s')\n", dest, basedir);
+-                if ( is_dir(basedir) != 0 ) {
+-                    singularity_message(DEBUG, "Creating base directory for file bind\n");
+-                    if ( container_mkpath_priv(basedir, 0755) != 0 ) {
+-                        singularity_message(ERROR, "Failed creating base directory to bind file: %s\n", dest);
+-                        ABORT(255);
+-                    }
+-                }
+-
+-                free(basedir);
+-
+-                singularity_message(VERBOSE3, "Creating bind file on overlay file system: %s\n", dest);
+-                if ( fileput_priv(joinpath(container_dir, dest), "") != 0 ) {
+-                    continue;
+-                }
+-                singularity_message(DEBUG, "Created bind file: %s\n", dest);
+-            } else {
+-                singularity_message(WARNING, "Non existent bind point (file) in container: '%s'\n", dest);
+-                continue;
+-            }
+-        } else if ( ( is_dir(source) == 0 ) && ( is_dir(joinpath(container_dir, dest)) < 0 ) ) {
+-            if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                singularity_message(VERBOSE3, "Creating bind directory on overlay file system: %s\n", dest);
+-                if ( container_mkpath_priv(joinpath(container_dir, dest), 0755) < 0 ) {
+-                    singularity_message(WARNING, "Could not create bind point directory in container %s: %s\n", dest, strerror(errno));
+-                    continue;
+-                }
+-            } else {
+-                singularity_message(WARNING, "Non existent bind point (directory) in container: '%s'\n", dest);
+-                continue;
+-            }
+-        }
+-
+-        singularity_message(VERBOSE, "Binding '%s' to '%s/%s'\n", source, container_dir, dest);
+-        if ( singularity_mount(source, joinpath(container_dir, dest), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-            singularity_message(ERROR, "There was an error binding the path %s: %s\n", source, strerror(errno));
+-            ABORT(255);
+-        }
+-        if ( singularity_priv_userns_enabled() != 1 ) {
+-            if ( singularity_mount(NULL, joinpath(container_dir, dest), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL) < 0 ) {
+-                singularity_message(ERROR, "There was an error remounting the path %s: %s\n", source, strerror(errno));
+-                ABORT(255);
+-            }
+-        }
++        singularity_message(VERBOSE, "Queuing bind mount of '%s' to '%s'\n", source, dest);
++        mountlist_add(mountlist, source, dest, NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
++        source = NULL;
++        dest = NULL;
+     }
+ 
++    if (source != NULL)
++        free(source);
++    if (dest != NULL)
++        free(dest);
++
+     return(0);
+ }
+ 
+diff --git a/src/lib/runtime/mounts/binds/binds.h b/src/lib/runtime/mounts/binds/binds.h
+index f555370..200ab76 100644
+--- a/src/lib/runtime/mounts/binds/binds.h
++++ b/src/lib/runtime/mounts/binds/binds.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_BINDS_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_BINDS_H_
+ 
+-extern int _singularity_runtime_mount_binds(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_binds(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_BINDS_H */
+ 
+diff --git a/src/lib/runtime/mounts/cwd/cwd.c b/src/lib/runtime/mounts/cwd/cwd.c
+index c251edc..c90ffa4 100644
+--- a/src/lib/runtime/mounts/cwd/cwd.c
++++ b/src/lib/runtime/mounts/cwd/cwd.c
+@@ -40,18 +40,15 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
+-#include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_cwd(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_cwd(struct mountlist *mountlist) {
+     char *cwd_path = (char *)malloc(PATH_MAX);
+-    int r;
+ 
+     singularity_message(DEBUG, "Checking to see if we should mount current working directory\n");
+     if ( cwd_path == NULL ) {
+@@ -73,34 +70,6 @@ int _singularity_runtime_mount_cwd(void) {
+         return(0);
+     }
+ 
+-    singularity_message(DEBUG, "Checking if current directory already available within container: %s\n", cwd_path);
+-    if ( is_dir(joinpath(container_dir, cwd_path)) == 0 ) {
+-        char *cwd_fileid = file_devino(cwd_path);
+-        char *container_cwd_fileid = file_devino(joinpath(container_dir, cwd_path));
+-
+-        singularity_message(DEBUG, "Checking if container's cwd == host's cwd\n");
+-        if ( strcmp(cwd_fileid, container_cwd_fileid) == 0 ) {
+-            singularity_message(VERBOSE, "Not mounting current directory: location already available within container\n");
+-            free(cwd_path);
+-            free(cwd_fileid);
+-            free(container_cwd_fileid);
+-            return(0);
+-        } else {
+-            singularity_message(DEBUG, "Container's cwd is not the same as the host, continuing on...\n");
+-        }
+-    } else {
+-        singularity_message(VERBOSE, "Not mounting CWD, directory does not exist within container: %s\n", cwd_path);
+-        free(cwd_path);
+-        return(0);
+-    }
+-
+-    singularity_message(DEBUG, "Checking if CWD is already mounted: %s\n", cwd_path);
+-    if ( check_mounted(cwd_path) >= 0 ) {
+-        singularity_message(VERBOSE, "Not mounting CWD (already mounted in container): %s\n", cwd_path);
+-        free(cwd_path);
+-        return(0);
+-    }
+-
+     singularity_message(DEBUG, "Checking if cwd is in an operating system directory\n");
+     if ( ( strcmp(cwd_path, "/") == 0 ) ||
+          ( strcmp(cwd_path, "/bin") == 0 ) ||
+@@ -131,16 +100,9 @@ int _singularity_runtime_mount_cwd(void) {
+         return(0);
+     }
+ 
+-    singularity_message(VERBOSE, "Binding '%s' to '%s/%s'\n", cwd_path, container_dir, cwd_path);
+-    r = singularity_mount(cwd_path, joinpath(container_dir, cwd_path), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL);
+-    if ( singularity_priv_userns_enabled() != 1 ) {
+-        r = singularity_mount(NULL, joinpath(container_dir, cwd_path), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL);
+-    }
+-    if ( r < 0 ) {
+-        singularity_message(WARNING, "Could not bind CWD to container %s: %s\n", cwd_path, strerror(errno));
+-    }
++    singularity_message(VERBOSE, "Queuing bind mount of '%s' to '%s' if mountpoint exists\n", cwd_path, cwd_path);
++    mountlist_add(mountlist, NULL, cwd_path, NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, ML_ONLY_IF_POINT_PRESENT);
+ 
+-    free(cwd_path);
+     return(0);
+ }
+ 
+diff --git a/src/lib/runtime/mounts/cwd/cwd.h b/src/lib/runtime/mounts/cwd/cwd.h
+index c2c9fd0..3404e12 100644
+--- a/src/lib/runtime/mounts/cwd/cwd.h
++++ b/src/lib/runtime/mounts/cwd/cwd.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_CWD_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_CWD_H_
+ 
+-extern int _singularity_runtime_mount_cwd(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_cwd(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_CWD_H */
+ 
+diff --git a/src/lib/runtime/mounts/dev/dev.c b/src/lib/runtime/mounts/dev/dev.c
+index 7dc7a76..cbd6f19 100644
+--- a/src/lib/runtime/mounts/dev/dev.c
++++ b/src/lib/runtime/mounts/dev/dev.c
+@@ -43,14 +43,14 @@
+ #include "util/registry.h"
+ #include "util/mount.h"
+ #include "util/suid.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ static int bind_dev(char *tmpdir, char *dev);
+ 
+ 
+-int _singularity_runtime_mount_dev(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_dev(struct mountlist *mountlist) {
+ 
+     if ( ( singularity_registry_get("CONTAIN") != NULL ) || ( strcmp("minimal", singularity_config_get_value(MOUNT_DEV)) == 0 ) ) {
+         char *sessiondir = singularity_registry_get("SESSIONDIR");
+@@ -58,22 +58,6 @@ int _singularity_runtime_mount_dev(void) {
+         char *nvopt = singularity_registry_get("NV"); 
+         char memfs_type[] = "tmpfs";
+ 
+-        if ( is_dir(joinpath(container_dir, "/dev")) < 0 ) {
+-            int ret;
+-
+-            if ( singularity_registry_get("OVERLAYFS_ENABLED") == NULL ) {
+-                singularity_message(WARNING, "Not mounting devices as /dev directory does not exist within container\n");
+-                return(-1);
+-            }
+-
+-            ret = container_mkpath_priv(joinpath(container_dir, "/dev"), 0755);
+-
+-            if ( ret < 0 ) {
+-                singularity_message(ERROR, "Could not create /dev inside container\n");
+-                ABORT(255);
+-            }
+-        }
+-
+         singularity_message(DEBUG, "Creating temporary staged /dev\n");
+         if ( container_mkpath_nopriv(devdir, 0755) != 0 ) {
+             singularity_message(ERROR, "Failed creating the session device directory %s: %s\n", devdir, strerror(errno));
+@@ -220,31 +204,18 @@ int _singularity_runtime_mount_dev(void) {
+                 free(devpts_opts);
+         }
+ 
+-        singularity_message(DEBUG, "Mounting minimal staged /dev into container\n");
+-        if ( singularity_mount(devdir, joinpath(container_dir, "/dev"), NULL, MS_BIND|MS_REC, NULL) < 0 ) {
+-            singularity_message(WARNING, "Could not stage dev tree: '%s' -> '%s': %s\n", devdir, joinpath(container_dir, "/dev"), strerror(errno));
+-            free(sessiondir);
+-            free(devdir);
+-            return(-1);
+-        }
++        singularity_message(DEBUG, "Queuing bind mount of minimal staged /dev to mount into container\n");
++        mountlist_add(mountlist, devdir, strdup("/dev"), NULL, MS_BIND|MS_REC, 0);
+ 
+         free(sessiondir);
+-        free(devdir);
+ 
+         return(0);
+     }
+ 
+     singularity_message(DEBUG, "Checking configuration file for 'mount dev'\n");
+     if ( singularity_config_get_bool_char(MOUNT_DEV) > 0 ) {
+-        if ( is_dir(joinpath(container_dir, "/dev")) == 0 ) {
+-                singularity_message(VERBOSE, "Bind mounting /dev\n");
+-                if ( singularity_mount("/dev", joinpath(container_dir, "/dev"), NULL, MS_BIND|MS_NOSUID|MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Could not bind mount container's /dev: %s\n", strerror(errno));
+-                    ABORT(255);
+-                }
+-        } else {
+-            singularity_message(WARNING, "Not mounting /dev, container has no bind directory\n");
+-        }
++        singularity_message(VERBOSE, "Queuing bind mount of /dev\n");
++        mountlist_add(mountlist, NULL, strdup("/dev"), NULL, MS_BIND|MS_NOSUID|MS_REC, 0);
+         return(0);
+     }
+ 
+diff --git a/src/lib/runtime/mounts/dev/dev.h b/src/lib/runtime/mounts/dev/dev.h
+index 2e15d20..f929017 100644
+--- a/src/lib/runtime/mounts/dev/dev.h
++++ b/src/lib/runtime/mounts/dev/dev.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_DEV_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_DEV_H_
+ 
+-extern int _singularity_runtime_mount_dev(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_dev(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_DEV_H */
+ 
+diff --git a/src/lib/runtime/mounts/domounts/Makefile.am b/src/lib/runtime/mounts/domounts/Makefile.am
+new file mode 100644
+index 0000000..0774cef
+--- /dev/null
++++ b/src/lib/runtime/mounts/domounts/Makefile.am
+@@ -0,0 +1,12 @@
++MAINTAINERCLEANFILES = Makefile.in 
++DISTCLEANFILES = Makefile
++CLEANFILES = core.* *~ *.la
++
++AM_CFLAGS = -Wall -fpie
++AM_LDFLAGS = -pie
++AM_CPPFLAGS = -DSYSCONFDIR=\"$(sysconfdir)\" -DLOCALSTATEDIR=\"$(localstatedir)\" -DLIBEXECDIR=\"$(libexecdir)\" $(SINGULARITY_DEFINES)
++
++noinst_LTLIBRARIES = libinternal.la
++libinternal_la_SOURCES = domounts.c
++
++EXTRA_DIST = domounts.h
+diff --git a/src/lib/runtime/mounts/domounts/domounts.c b/src/lib/runtime/mounts/domounts/domounts.c
+new file mode 100644
+index 0000000..485a87d
+--- /dev/null
++++ b/src/lib/runtime/mounts/domounts/domounts.c
+@@ -0,0 +1,415 @@
++/* 
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ *
++ * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
++ * 
++ * Copyright (c) 2016-2017, The Regents of the University of California,
++ * through Lawrence Berkeley National Laboratory (subject to receipt of any
++ * required approvals from the U.S. Dept. of Energy).  All rights reserved.
++ * 
++ * This software is licensed under a customized 3-clause BSD license.  Please
++ * consult LICENSE file distributed with the sources of this project regarding
++ * your rights to use or distribute this software.
++ * 
++ * NOTICE.  This Software was developed under funding from the U.S. Department of
++ * Energy and the U.S. Government consequently retains certain rights. As such,
++ * the U.S. Government has been granted for itself and others acting on its
++ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
++ * to reproduce, distribute copies to the public, prepare derivative works, and
++ * perform publicly and display publicly, and to permit other to do so. 
++ * 
++*/
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <string.h>
++#include <dirent.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <stdlib.h>
++#include <libgen.h>
++
++#include "config.h"
++#include "util/config_parser.h"
++#include "util/file.h"
++#include "util/util.h"
++#include "util/message.h"
++#include "util/privilege.h"
++#include "util/registry.h"
++#include "util/mount.h"
++#include "util/mountlist.h"
++
++void singularity_runtime_domounts_init(struct mountlist *mountlist) {
++    memset(mountlist, 0, sizeof(*mountlist));
++
++    singularity_registry_set("UNDERLAY_ENABLED", NULL);
++    if ( ( singularity_config_get_bool_char(ENABLE_UNDERLAY) > 0 ) ) {
++        if ( singularity_registry_get("DISABLE_UNDERLAY") != NULL ) {
++            singularity_message(VERBOSE3, "Not enabling underlay via environment\n");
++        } else {
++            singularity_message(VERBOSE3, "Enabling underlay\n");
++            singularity_registry_set("UNDERLAY_ENABLED", "1");
++        }
++    }
++}
++
++static void bind_image_final(char *source, char *sub_path) {
++    char *target = joinpath(CONTAINER_FINALDIR, sub_path);
++    singularity_message(VERBOSE3, "Binding %s to %s\n", source, target);
++    if ( singularity_mount(source, target, NULL, MS_BIND|MS_NOSUID|MS_REC, NULL) < 0 ) {
++
++        singularity_message(ERROR, "Failed binding %s to %s\n", source, target);
++        ABORT(255);
++    }
++    free(target);
++}
++
++static void mount_missing(char *image_path, char *underlay_path, char *sub_path) {
++    DIR *dir;
++    struct dirent *dp; 
++    char *source = NULL;
++    char *target = NULL;
++    char *existing_path = NULL;
++    int binds = 0;
++
++    singularity_message(VERBOSE3, "Mounting missing files/directories from %s\n", image_path);
++
++    // First find an existing mountpoint inside the underlay directory, if any
++    if ( ( dir = opendir(underlay_path) ) == NULL ) {
++        singularity_message(ERROR, "Could not open underlay dir %s", underlay_path);
++        ABORT(255);
++    }
++    while ( (dp = readdir(dir) ) != NULL ) {
++        if ( ( strcmp(dp->d_name, ".") != 0 ) &&
++             ( strcmp(dp->d_name, "..") != 0 ) ) {
++            break;
++        }
++    }
++    if ( dp == NULL ) {
++        singularity_message(VERBOSE3, "Skipping empty underlay directory: %s\n", underlay_path);
++        closedir(dir);
++        return;
++    }
++    singularity_message(DEBUG, "There is at least one mountpoint in %s: %s\n", underlay_path, dp->d_name);
++    existing_path = joinpath(sub_path, dp->d_name);
++    closedir(dir);
++
++    // Now search through the image for missing mountpoints in the underlay
++    if ( ( dir = opendir(image_path) ) == NULL ) {
++        singularity_message(ERROR, "Could not open dir %s", image_path);
++        ABORT(255);
++    }
++
++    while ( ( dp = readdir(dir) ) != NULL ) {
++        if ( (strcmp(dp->d_name, ".") == 0 ) || (strcmp(dp->d_name, "..") == 0 ) )
++            continue;
++        if ( source != NULL )
++            free(source);
++        if ( target != NULL )
++            free(target);
++        source = joinpath(image_path, dp->d_name);
++        target = joinpath(underlay_path, dp->d_name);
++        char *new_sub_path;
++        if ( strcmp(sub_path, "/") == 0 )
++            new_sub_path = strdup(dp->d_name);
++        else
++            new_sub_path = joinpath(sub_path, dp->d_name);
++        struct stat statbuf;
++        int statret = lstat(target, &statbuf);
++
++        if ( is_link(source) == 0 ) {
++            if ( statret < 0 ) {
++                char link[PATH_MAX+1];
++                ssize_t linksize = readlink(source, link, PATH_MAX); // Flawfinder: ignore not controllable by user
++                if ( linksize <= 0 ) {
++                    singularity_message(WARNING, "Failure reading link info from %s, skipping: %s\n", source, strerror(errno));
++                } else { 
++                    link[linksize] = '\0';
++                    singularity_message(VERBOSE3, "Creating symlink on underlay file system: %s->%s\n", target, link);
++                    singularity_priv_escalate();
++                    if ( symlink(link, target) < 0 )
++                        singularity_message(WARNING, "Failure making link to %s at %s, skipping: %s\n", target, source, strerror(errno));
++                    singularity_priv_drop();
++                }
++            } else if ( S_ISDIR(statbuf.st_mode) ) {
++                // It has been replaced by a directory, recurse into it
++                mount_missing(source, target, new_sub_path);
++            } else {
++                singularity_message(VERBOSE3, "Link point on underlay file system already exists, skipping: %s\n", target);
++            }
++        } else if ( is_file(source) == 0 ) {
++            if ( statret < 0 ) {
++                singularity_message(VERBOSE3, "Creating file mountpoint on underlay file system: %s\n", target);
++                if ( fileput_priv(target, "") != 0 ) {
++                    singularity_message(ERROR, "Failed creating underlay file mountpoint: %s\n", target);
++                    ABORT(255);
++                }
++                bind_image_final(source, new_sub_path);
++                binds++;
++            } else {
++                singularity_message(VERBOSE3, "File mountpoint on underlay file system already exists, skipping: %s\n", target);
++            }
++        } else if ( is_dir(source) == 0 ) {
++            if ( statret < 0 ) {
++                singularity_message(VERBOSE3, "Creating directory mountpoint on underlay file system: %s\n", target);
++                if ( container_mkpath_priv(target, 0755) < 0 ) {
++                    singularity_message(ERROR, "Failed creating underlay directory mountpoint: %s\n", target);
++                    ABORT(255);
++                }
++                bind_image_final(source, new_sub_path);
++                binds++;
++            } else if ( S_ISDIR(statbuf.st_mode) ) {
++                mount_missing(source, target, new_sub_path);
++            } else {
++                singularity_message(VERBOSE3, "Skipping non-directory target with directory source: %s\n", target);
++            }
++        } else {
++            singularity_message(VERBOSE3, "Skipping source that is neither file nor directory nor symlink: %s\n", source);
++        }
++        free(new_sub_path);
++    }
++
++    if ( source != NULL )
++        free(source);
++    if ( target != NULL )
++        free(target);
++    closedir(dir);
++
++    if ( binds > 50 ) {
++        singularity_message(WARNING, "Underlay of /%s required more than 50 (%d) bind mounts\n",
++                existing_path, binds);
++    } else {
++        singularity_message(DEBUG, "Did %d bind mounts around /%s\n",
++                binds, existing_path);
++    }
++    free(existing_path);
++}
++
++static int do_mounts(struct mountlist *mountlist, int overlay) {
++    char *container_dir = CONTAINER_FINALDIR;
++    char *source = NULL;
++    char *target = NULL;
++    struct mountlist_point *point;
++
++    for (point = mountlist->first; point != NULL; point = point->next) {
++        source = (char *) point->source;
++        if ( source == NULL )
++            source = (char *) point->target;
++        if ( target != NULL )
++            free(target);
++        target = joinpath(container_dir, point->target);
++
++        if ( check_mounted(point->target) >= 0 ) {
++            // make the message only information if ML_ONLY_IF_POINT_PRESENT
++            int msglevel = ( point->mountlistflags & ML_ONLY_IF_POINT_PRESENT ) ? VERBOSE : WARNING;
++            singularity_message(msglevel, "Not mounting %s (already mounted in container)\n", point->target);
++            continue;
++        }
++
++        if ( ( is_file(source) == 0 ) && ( is_file(target) < 0 ) ) {
++            if ( point->mountlistflags & ML_ONLY_IF_POINT_PRESENT ) {
++                singularity_message(VERBOSE, "Not mounting '%s', file does not exist within container\n", source);
++                continue;
++            }
++            if ( overlay ) {
++                char *basedir = strdup(target);
++                basedir = dirname(basedir);
++
++                singularity_message(DEBUG, "Checking base directory for file %s ('%s')\n", target, basedir);
++                if ( is_dir(basedir) != 0 ) {
++                    singularity_message(DEBUG, "Creating base directory for file mount\n");
++                    if ( container_mkpath_priv(basedir, 0755) != 0 ) {
++                        singularity_message(ERROR, "Failed creating base directory for mounted file: %s\n", target);
++                        ABORT(255);
++                    }
++                }
++
++                free(basedir);
++
++                singularity_message(VERBOSE3, "Creating file mountpoint on overlay file system: %s\n", target);
++                if ( fileput_priv(target, "") != 0 ) {
++                    continue;
++                }
++                singularity_message(DEBUG, "Created bind file: %s\n", target);
++            } else {
++                singularity_message(WARNING, "Non existent mount point (file) in container: '%s'\n", target);
++                continue;
++            }
++        } else if ( ( is_dir(source) == 0 ) && ( is_dir(target) < 0 ) ) {
++            if ( point->mountlistflags & ML_ONLY_IF_POINT_PRESENT ) {
++                singularity_message(VERBOSE, "Not mounting '%s', directory does not exist within container\n", source);
++                continue;
++            }
++            if ( overlay ) {
++                singularity_message(VERBOSE3, "Creating mount directory on overlay file system: %s\n", target);
++                if ( container_mkpath_priv(target, 0755) < 0 ) {
++                    singularity_message(WARNING, "Could not create mount point directory in container %s: %s\n", target, strerror(errno));
++                    continue;
++                }
++            } else {
++                singularity_message(WARNING, "Non existent mountpoint (directory) in container: '%s'\n", target);
++                continue;
++            }
++        }
++
++        singularity_message(VERBOSE, "Mounting '%s' at '%s'\n", source, target);
++        int read_only = ( (point->mountflags & MS_RDONLY) != 0 );
++        point->mountflags &= ~MS_RDONLY;
++        if ( singularity_mount_point(point) < 0 ) {
++            singularity_message(ERROR, "There was an error mounting %s: %s\n", source, strerror(errno));
++            ABORT(255);
++        }
++
++        if ( read_only ) {
++            if ( singularity_priv_userns_enabled() == 1 ) {
++                singularity_message(WARNING, "Can not make mount read only within the user namespace: %s\n", target);
++            } else {
++                singularity_message(VERBOSE, "Remounting %s read-only\n", target);
++                point->mountflags |= MS_REMOUNT|MS_RDONLY;
++                if ( singularity_mount_point(point) < 0 ) {
++                    singularity_message(ERROR, "There was an error write-protecting the path %s: %s\n", source, strerror(errno));
++                    ABORT(255);
++                }
++                if ( access(target, W_OK) == 0 || (errno != EROFS && errno != EACCES) ) { // Flawfinder: ignore (precautionary confirmation, not necessary)
++                    singularity_message(ERROR, "Failed to write-protect the path %s: %s\n", source, strerror(errno));
++                    ABORT(255);
++                }
++            }
++        } else if ( singularity_priv_userns_enabled() != 1 ) {
++            point->mountflags |= MS_REMOUNT;
++            singularity_message(VERBOSE, "Remounting %s\n", target);
++            if ( singularity_mount_point(point) < 0 ) {
++                singularity_message(ERROR, "There was an error remounting the path %s: %s\n", source, strerror(errno));
++                ABORT(255);
++            }
++        }
++    }
++
++    if ( target != NULL )
++        free(target);
++    
++    return(0);
++}
++
++static int underlay_mounts(struct mountlist *mountlist) {
++    char *underlay_dir = joinpath(singularity_registry_get("SESSIONDIR"), "underlay");
++    char *image_dir = CONTAINER_MOUNTDIR;
++    char *final_dir = CONTAINER_FINALDIR;
++    char *source = NULL;
++    char *underlay_target = NULL;
++    char *image_target = NULL;
++    struct mountlist_point *point;
++
++    singularity_message(DEBUG, "Creating directory for underlay: %s\n", underlay_dir);
++    if ( container_mkpath_priv(underlay_dir, 0755) < 0 ) {
++        singularity_message(ERROR, "Failed creating underlay directory %s: %s\n", underlay_dir, strerror(errno));
++        ABORT(255);
++    }
++
++    singularity_message(DEBUG, "Unmounting final dir %s\n", final_dir);
++    singularity_priv_escalate();
++    if ( umount(final_dir) != 0 ) {
++        singularity_message(ERROR, "Could not umount final directory %s: %s\n", final_dir, strerror(errno));
++        ABORT(255);
++    }
++    singularity_priv_drop();
++
++    singularity_message(DEBUG, "Binding underlay directory to final directory %s->%s\n", underlay_dir, final_dir);
++    if ( singularity_mount(underlay_dir, final_dir, NULL, MS_BIND|MS_NOSUID|MS_REC, NULL) < 0 ) {
++        singularity_message(ERROR, "Could not bind mount underlay directory to final directory %s->%s: %s\n", underlay_dir, final_dir, strerror(errno));
++        ABORT(255);
++    }
++
++    // It's important for the underlay directory to be mounted read-only
++    //   because otherwise when running unprivileged the code inside the
++    //   container would be able to modify it's own root filesystem.
++    //   It's not necessary when running setuid because then the
++    //   root filesystem directory is owned by root, but do the same
++    //   thing anyway for consistency.
++    singularity_message(DEBUG, "Remounting underlay directory to final directory read-only %s->%s\n", underlay_dir, final_dir);
++    if ( singularity_mount(underlay_dir, final_dir, NULL, MS_REMOUNT|MS_BIND|MS_NOSUID|MS_REC|MS_RDONLY, NULL) < 0 ) {
++        singularity_message(ERROR, "Could not re-mount underlay directory to final directory read-only %s->%s: %s\n", underlay_dir, final_dir, strerror(errno));
++        ABORT(255);
++    }
++    errno = 0;
++    if ( access(final_dir, W_OK) == 0 || (errno != EROFS && errno != EACCES) ) { // Flawfinder: ignore (precautionary confirmation, not necessary)
++        singularity_message(ERROR, "Failed to write-protect the final directory %s: %s\n", final_dir, strerror(errno));
++        ABORT(255);
++    }
++
++    // make missing mount points in the underlay area
++    for (point = mountlist->first; point != NULL; point = point->next) {
++        if ( point->mountlistflags & ML_ONLY_IF_POINT_PRESENT )
++            continue;
++
++        source = (char *) point->source;
++        if ( source == NULL )
++            source = (char *) point->target;
++        if ( underlay_target != NULL )
++            free(underlay_target);
++        if ( image_target != NULL )
++            free(image_target);
++        underlay_target = joinpath(underlay_dir, point->target);
++        image_target = joinpath(image_dir, point->target);
++        char *basedir = strdup(underlay_target);
++        basedir = dirname(basedir);
++
++        if ( ( is_file(source) == 0 ) && ( is_file(underlay_target) < 0 ) &&
++               ( ( is_file(image_target) < 0 ) || ( is_dir(basedir) == 0 ) ) ) {
++
++            singularity_message(DEBUG, "Checking base directory for file %s ('%s')\n", underlay_target, basedir);
++            if ( is_dir(basedir) != 0 ) {
++                singularity_message(DEBUG, "Creating base directory for file mount\n");
++                if ( container_mkpath_priv(basedir, 0755) != 0 ) {
++                    singularity_message(ERROR, "Failed creating base directory for mounted file: %s\n", underlay_target);
++                    ABORT(255);
++                }
++            }
++
++
++            singularity_message(VERBOSE3, "Creating file mountpoint on underlay file system: %s\n", underlay_target);
++            if ( fileput_priv(underlay_target, "") != 0 ) {
++                singularity_message(ERROR, "Could not create mount point file in underlay %s: %s\n", underlay_target, strerror(errno));
++                ABORT(255);
++            }
++            singularity_message(DEBUG, "Created bind file: %s\n", underlay_target);
++        } else if ( ( ( point->filesystemtype != NULL ) ||
++                      ( is_dir(source) == 0 ) ) &&
++                  ( is_dir(underlay_target) < 0 ) &&
++                  ( ( is_dir(image_target) < 0 ) ||
++                    ( is_dir(basedir) == 0 ) ) ) {
++            singularity_message(VERBOSE3, "Creating mount directory on underlay file system: %s\n", underlay_target);
++            if ( container_mkpath_priv(underlay_target, 0755) < 0 ) {
++                singularity_message(ERROR, "Could not create mount point directory in underlay %s: %s\n", underlay_target, strerror(errno));
++                ABORT(255);
++            }
++        }
++        free(basedir);
++    }
++
++    if ( image_target != NULL )
++        free(image_target);
++    if ( underlay_target != NULL )
++        free(underlay_target);
++    
++    // mount everything else from the image into the underlay area
++    mount_missing(image_dir, underlay_dir, "/");
++
++    free(underlay_dir);
++
++    // finally, do the requested mounts
++    return(do_mounts(mountlist, 0));
++}
++
++int _singularity_runtime_domounts(struct mountlist *mountlist) {
++    if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL )
++        return(do_mounts(mountlist, 1));
++
++    if ( singularity_registry_get("UNDERLAY_ENABLED") != NULL )
++        return(underlay_mounts(mountlist));
++
++    return(do_mounts(mountlist, 0));
++}
+diff --git a/src/lib/runtime/mounts/domounts/domounts.h b/src/lib/runtime/mounts/domounts/domounts.h
+new file mode 100644
+index 0000000..d7464b2
+--- /dev/null
++++ b/src/lib/runtime/mounts/domounts/domounts.h
+@@ -0,0 +1,33 @@
++/* 
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ *
++ * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
++ * 
++ * Copyright (c) 2016-2017, The Regents of the University of California,
++ * through Lawrence Berkeley National Laboratory (subject to receipt of any
++ * required approvals from the U.S. Dept. of Energy).  All rights reserved.
++ * 
++ * This software is licensed under a customized 3-clause BSD license.  Please
++ * consult LICENSE file distributed with the sources of this project regarding
++ * your rights to use or distribute this software.
++ * 
++ * NOTICE.  This Software was developed under funding from the U.S. Department of
++ * Energy and the U.S. Government consequently retains certain rights. As such,
++ * the U.S. Government has been granted for itself and others acting on its
++ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
++ * to reproduce, distribute copies to the public, prepare derivative works, and
++ * perform publicly and display publicly, and to permit other to do so. 
++ * 
++*/
++
++#ifndef __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H_
++#define __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H_
++
++struct mountlist;
++
++extern int _singularity_runtime_domounts_init(struct mountlist *mountlist);
++extern int _singularity_runtime_domounts(struct mountlist *mountlist);
++
++#endif /* __SINGULARITY_RUNTIME_MOUNT_DOMOUNTS_H */
++
+diff --git a/src/lib/runtime/mounts/home/home.c b/src/lib/runtime/mounts/home/home.c
+index 665d256..c05c216 100644
+--- a/src/lib/runtime/mounts/home/home.c
++++ b/src/lib/runtime/mounts/home/home.c
+@@ -39,15 +39,15 @@
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+ #include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_home(void) {
++int _singularity_runtime_mount_home(struct mountlist *mountlist) {
+     char *home_source = singularity_priv_homedir();
+     char *home_dest = singularity_priv_home();
+     char *session_dir = singularity_registry_get("SESSIONDIR");
+-    char *container_dir = CONTAINER_FINALDIR;
+ 
+     singularity_message(DEBUG, "Checking that home directry is configured: %s\n", home_dest);
+     if ( home_dest == NULL ) {
+@@ -83,12 +83,6 @@ int _singularity_runtime_mount_home(void) {
+         ABORT(255);
+     }
+ 
+-    singularity_message(DEBUG, "Checking if home directory is already mounted: %s\n", home_dest);
+-    if ( check_mounted(home_dest) >= 0 ) {
+-        singularity_message(VERBOSE, "Not mounting home directory (already mounted in container): %s\n", home_dest);
+-        return(0);
+-    }
+-
+     singularity_message(DEBUG, "Creating temporary directory to stage home: %s\n", joinpath(session_dir, home_dest));
+     if ( container_mkpath_nopriv(joinpath(session_dir, home_dest), 0755) < 0 ) {
+         singularity_message(ERROR, "Failed creating home directory stage %s: %s\n", joinpath(session_dir, home_dest), strerror(errno));
+@@ -112,8 +106,9 @@ int _singularity_runtime_mount_home(void) {
+         singularity_message(VERBOSE, "Using sessiondir for home directory\n");
+     }
+ 
+-    singularity_message(DEBUG, "Checking if overlay is enabled\n");
+-    if ( singularity_registry_get("OVERLAYFS_ENABLED") == NULL ) {
++    singularity_message(DEBUG, "Checking if overlay or underlay is enabled\n");
++    if ( ( singularity_registry_get("OVERLAYFS_ENABLED") == NULL ) &&
++            ( singularity_registry_get("UNDERLAY_ENABLED") == NULL ) ) {
+         char *homedir_base;
+ 
+         singularity_message(DEBUG, "Staging home directory base\n");
+@@ -124,33 +119,12 @@ int _singularity_runtime_mount_home(void) {
+             ABORT(255);
+         }
+ 
+-        singularity_message(DEBUG, "Checking home directory base exists in container: %s\n", homedir_base);
+-        if ( is_dir(joinpath(container_dir, homedir_base)) != 0 ) {
+-            singularity_message(ERROR, "Base home directory does not exist within the container: %s\n", homedir_base);
+-            ABORT(255);
+-        }
+-
+-        singularity_message(VERBOSE, "Mounting staged home directory base to container's base dir: %s -> %s\n", joinpath(session_dir, homedir_base), joinpath(container_dir, homedir_base));
+-        if ( singularity_mount(joinpath(session_dir, homedir_base), joinpath(container_dir, homedir_base), NULL, MS_BIND | MS_NOSUID | MS_NODEV | MS_REC, NULL) < 0 ) {
+-            singularity_message(ERROR, "Failed to mount staged home base: %s -> %s: %s\n", joinpath(session_dir, homedir_base), joinpath(container_dir, homedir_base), strerror(errno));
+-            ABORT(255);
+-        }
++        singularity_message(VERBOSE, "Queuing bind mount of staged home directory base to container's base dir: %s/%s -> %s\n", session_dir, homedir_base, homedir_base);
++        mountlist_add(mountlist, joinpath(session_dir, homedir_base), strdup(homedir_base), NULL, MS_BIND | MS_NOSUID | MS_NODEV | MS_REC, 0);
+ 
+-        free(homedir_base);
+     } else {
+-        singularity_message(DEBUG, "Staging home directory\n");
+-
+-        singularity_message(DEBUG, "Creating home directory within container: %s\n", joinpath(container_dir, home_dest));
+-        if ( container_mkpath_priv(joinpath(container_dir, home_dest), 0755) < 0 ) {
+-            singularity_message(ERROR, "Failed creating home directory in container %s: %s\n", joinpath(container_dir, home_dest), strerror(errno));
+-            ABORT(255);
+-        }
+-
+-        singularity_message(VERBOSE, "Mounting staged home directory to container: %s -> %s\n", joinpath(session_dir, home_dest), joinpath(container_dir, home_dest));
+-        if ( singularity_mount(joinpath(session_dir, home_dest), joinpath(container_dir, home_dest), NULL, MS_BIND | MS_NOSUID | MS_NODEV | MS_REC, NULL) < 0 ) {
+-            singularity_message(ERROR, "Failed to mount staged home base: %s -> %s: %s\n", joinpath(session_dir, home_dest), joinpath(container_dir, home_dest), strerror(errno));
+-            ABORT(255);
+-        }
++        singularity_message(VERBOSE, "Queuing bind mount of staged home directory to container: %s/%s -> %s\n", session_dir, home_dest, home_dest);
++        mountlist_add(mountlist, joinpath(session_dir, home_dest), strdup(home_dest), NULL, MS_BIND | MS_NOSUID | MS_NODEV | MS_REC, 0);
+     }
+ 
+     envar_set("HOME", home_dest, 1);
+diff --git a/src/lib/runtime/mounts/home/home.h b/src/lib/runtime/mounts/home/home.h
+index a150177..2553d75 100644
+--- a/src/lib/runtime/mounts/home/home.h
++++ b/src/lib/runtime/mounts/home/home.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_HOME_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_HOME_H_
+ 
+-extern int _singularity_runtime_mount_home(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_home(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_HOME_H */
+ 
+diff --git a/src/lib/runtime/mounts/hostfs/hostfs.c b/src/lib/runtime/mounts/hostfs/hostfs.c
+index 2040d53..a56c5cc 100644
+--- a/src/lib/runtime/mounts/hostfs/hostfs.c
++++ b/src/lib/runtime/mounts/hostfs/hostfs.c
+@@ -37,20 +37,18 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
+-#include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ #define MAX_LINE_LEN 4096
+ 
+ 
+-int _singularity_runtime_mount_hostfs(void) {
++int _singularity_runtime_mount_hostfs(struct mountlist *mountlist) {
+     FILE *mounts;
+     char *line = NULL;
+-    char *container_dir = CONTAINER_FINALDIR;
+ 
+     if ( singularity_config_get_bool(MOUNT_HOSTFS) <= 0 ) {
+         singularity_message(DEBUG, "Not mounting host file systems per configuration\n");
+@@ -88,7 +86,7 @@ int _singularity_runtime_mount_hostfs(void) {
+             singularity_message(VERBOSE3, "Skipping blank or comment line in /proc/mounts\n");
+             continue;
+         }
+-        if ( ( source = strtok(strdup(line), " ") ) == NULL ) {
++        if ( ( source = strtok(line, " ") ) == NULL ) {
+             singularity_message(VERBOSE3, "Could not obtain mount source from /proc/mounts: %s\n", line);
+             continue;
+         }
+@@ -129,8 +127,8 @@ int _singularity_runtime_mount_hostfs(void) {
+             singularity_message(DEBUG, "Skipping /var based file system: %s,%s,%s\n", source, mountpoint, filesystem);
+             continue;
+         }
+-        if ( strncmp(mountpoint, container_dir, strlength(container_dir, PATH_MAX)) == 0 ) {
+-            singularity_message(DEBUG, "Skipping final_dir (%s) based file system: %s,%s,%s\n", container_dir, source, mountpoint, filesystem);
++        if ( strncmp(mountpoint, CONTAINER_FINALDIR, strlength(CONTAINER_FINALDIR, PATH_MAX)) == 0 ) {
++            singularity_message(DEBUG, "Skipping final_dir (%s) based file system: %s,%s,%s\n", CONTAINER_FINALDIR, source, mountpoint, filesystem);
+             continue;
+         }
+         if ( strcmp(mountpoint, CONTAINER_MOUNTDIR) == 0 ) {
+@@ -149,37 +147,9 @@ int _singularity_runtime_mount_hostfs(void) {
+             singularity_message(DEBUG, "Skipping ramfs file system: %s,%s,%s\n", source, mountpoint, filesystem);
+             continue;
+         }
+-        singularity_message(DEBUG, "Checking if host file system is already mounted: %s\n", mountpoint);
+-        if ( check_mounted(mountpoint) >= 0 ) {
+-            singularity_message(VERBOSE, "Not mounting host FS (already mounted in container): %s\n", mountpoint);
+-            continue;
+-        }
+-
+-        if ( ( is_dir(mountpoint) == 0 ) && ( is_dir(joinpath(container_dir, mountpoint)) < 0 ) ) {
+-            if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                if ( container_mkpath_priv(joinpath(container_dir, mountpoint), 0755) < 0 ) {
+-                    singularity_message(WARNING, "Could not create bind point directory in container %s: %s\n", mountpoint, strerror(errno));
+-                    continue;
+-                }
+-            } else {
+-                singularity_message(WARNING, "Non existent 'bind point' directory in container: '%s'\n", mountpoint);
+-                continue;
+-            }
+-        }
+-
+-
+-        singularity_message(VERBOSE, "Binding '%s'(%s) to '%s/%s'\n", mountpoint, filesystem, container_dir, mountpoint);
+-        if ( singularity_mount(mountpoint, joinpath(container_dir, mountpoint), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-            singularity_message(ERROR, "There was an error binding the path %s: %s\n", mountpoint, strerror(errno));
+-            ABORT(255);
+-        }
+-        if ( singularity_priv_userns_enabled() != 1 ) {
+-            if ( singularity_mount(NULL, joinpath(container_dir, mountpoint), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL) < 0 ) {
+-                singularity_message(ERROR, "There was an error remounting the path %s: %s\n", mountpoint, strerror(errno));
+-                ABORT(255);
+-            }
+-        }
+ 
++        singularity_message(VERBOSE, "Queuing bind mount of '%s'(%s) to '%s'\n", mountpoint, filesystem, mountpoint);
++        mountlist_add(mountlist, NULL, strdup(mountpoint), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
+     }
+ 
+     free(line);
+diff --git a/src/lib/runtime/mounts/hostfs/hostfs.h b/src/lib/runtime/mounts/hostfs/hostfs.h
+index 9d9f6ab..62617a1 100644
+--- a/src/lib/runtime/mounts/hostfs/hostfs.h
++++ b/src/lib/runtime/mounts/hostfs/hostfs.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_HOSTFS_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_HOSTFS_H_
+ 
+-extern int _singularity_runtime_mount_hostfs(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_hostfs(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_HOSTFS_H */
+ 
+diff --git a/src/lib/runtime/mounts/kernelfs/kernelfs.c b/src/lib/runtime/mounts/kernelfs/kernelfs.c
+index cc0de35..bfe9741 100644
+--- a/src/lib/runtime/mounts/kernelfs/kernelfs.c
++++ b/src/lib/runtime/mounts/kernelfs/kernelfs.c
+@@ -37,34 +37,23 @@
+ #include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ #include "../../ns/ns.h"
+ 
+ 
+-int _singularity_runtime_mount_kernelfs(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_kernelfs(struct mountlist *mountlist) {
+ 
+     // Mount /proc if we are configured
+     singularity_message(DEBUG, "Checking configuration file for 'mount proc'\n");
+     if ( singularity_config_get_bool(MOUNT_PROC) > 0 ) {
+-        if ( is_dir(joinpath(container_dir, "/proc")) == 0 ) {
+-            if ( singularity_registry_get("PIDNS_ENABLED") == NULL ) {
+-                singularity_message(VERBOSE, "Bind-mounting host /proc\n");
+-                if ( singularity_mount("/proc", joinpath(container_dir, "/proc"), NULL, MS_BIND | MS_NOSUID | MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Could not bind-mount host /proc into container: %s\n", strerror(errno));
+-                    ABORT(255);
+-                }
+-            } else {
+-                singularity_message(VERBOSE, "Mounting new procfs\n");
+-                if ( singularity_mount("proc", joinpath(container_dir, "/proc"), "proc", MS_NOSUID, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Could not mount new procfs into container: %s\n", strerror(errno));
+-                    ABORT(255);
+-                }
+-            }
++        if ( singularity_registry_get("PIDNS_ENABLED") == NULL ) {
++            singularity_message(VERBOSE, "Queuing bind mount of host /proc\n");
++            mountlist_add(mountlist, NULL, strdup("/proc"), NULL, MS_BIND | MS_NOSUID | MS_REC, 0);
+         } else {
+-            singularity_message(WARNING, "Not mounting /proc, container has no bind directory\n");
++            singularity_message(VERBOSE, "Queuing mount of new procfs\n");
++            mountlist_add(mountlist, strdup("proc"), strdup("/proc"), "proc", MS_NOSUID, 0);
+         }
+     } else {
+         singularity_message(VERBOSE, "Skipping /proc mount\n");
+@@ -74,22 +63,12 @@ int _singularity_runtime_mount_kernelfs(void) {
+     // Mount /sys if we are configured
+     singularity_message(DEBUG, "Checking configuration file for 'mount sys'\n");
+     if ( singularity_config_get_bool(MOUNT_SYS) > 0 ) {
+-        if ( is_dir(joinpath(container_dir, "/sys")) == 0 ) {
+-            if ( singularity_priv_userns_enabled() == 1 ) {
+-                singularity_message(VERBOSE, "Mounting /sys\n");
+-                if ( singularity_mount("/sys", joinpath(container_dir, "/sys"), NULL, MS_BIND | MS_NOSUID | MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Could not mount /sys into container: %s\n", strerror(errno));
+-                    ABORT(255);
+-                }
+-            } else {
+-                singularity_message(VERBOSE, "Mounting /sys\n");
+-                if ( singularity_mount("sysfs", joinpath(container_dir, "/sys"), "sysfs", MS_NOSUID, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Could not mount /sys into container: %s\n", strerror(errno));
+-                    ABORT(255);
+-                }
+-            }
++        if ( singularity_priv_userns_enabled() == 1 ) {
++            singularity_message(VERBOSE, "Queuing bind mount of /sys\n");
++            mountlist_add(mountlist, NULL, strdup("/sys"), NULL, MS_BIND | MS_NOSUID | MS_REC, 0);
+         } else {
+-            singularity_message(WARNING, "Not mounting /sys, container has no bind directory\n");
++            singularity_message(VERBOSE, "Queuing mount of new sysfs\n");
++            mountlist_add(mountlist, strdup("sysfs"), strdup("/sys"), "sysfs", MS_NOSUID, 0);
+         }
+     } else {
+         singularity_message(VERBOSE, "Skipping /sys mount\n");
+diff --git a/src/lib/runtime/mounts/kernelfs/kernelfs.h b/src/lib/runtime/mounts/kernelfs/kernelfs.h
+index 63143c0..6b49c58 100644
+--- a/src/lib/runtime/mounts/kernelfs/kernelfs.h
++++ b/src/lib/runtime/mounts/kernelfs/kernelfs.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_KERNELFS_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_KERNELFS_H_
+ 
+-extern int _singularity_runtime_mount_kernelfs(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_kernelfs(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_KERNELFS_H */
+ 
+diff --git a/src/lib/runtime/mounts/libs/Makefile.am b/src/lib/runtime/mounts/libs/Makefile.am
+new file mode 100644
+index 0000000..f54f504
+--- /dev/null
++++ b/src/lib/runtime/mounts/libs/Makefile.am
+@@ -0,0 +1,12 @@
++MAINTAINERCLEANFILES = Makefile.in 
++DISTCLEANFILES = Makefile
++CLEANFILES = core.* *~ *.la
++
++AM_CFLAGS = -Wall -fpie
++AM_LDFLAGS = -pie
++AM_CPPFLAGS = -DSYSCONFDIR=\"$(sysconfdir)\" -DLOCALSTATEDIR=\"$(localstatedir)\" -DLIBEXECDIR=\"$(libexecdir)\" $(SINGULARITY_DEFINES)
++
++noinst_LTLIBRARIES = libinternal.la
++libinternal_la_SOURCES = libs.c
++
++EXTRA_DIST = libs.h
+diff --git a/src/lib/runtime/mounts/libs/libs.c b/src/lib/runtime/mounts/libs/libs.c
+new file mode 100644
+index 0000000..7c73771
+--- /dev/null
++++ b/src/lib/runtime/mounts/libs/libs.c
+@@ -0,0 +1,157 @@
++/* 
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ *
++ * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
++ * 
++ * Copyright (c) 2016-2017, The Regents of the University of California,
++ * through Lawrence Berkeley National Laboratory (subject to receipt of any
++ * required approvals from the U.S. Dept. of Energy).  All rights reserved.
++ * 
++ * This software is licensed under a customized 3-clause BSD license.  Please
++ * consult LICENSE file distributed with the sources of this project regarding
++ * your rights to use or distribute this software.
++ * 
++ * NOTICE.  This Software was developed under funding from the U.S. Department of
++ * Energy and the U.S. Government consequently retains certain rights. As such,
++ * the U.S. Government has been granted for itself and others acting on its
++ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
++ * to reproduce, distribute copies to the public, prepare derivative works, and
++ * perform publicly and display publicly, and to permit other to do so. 
++ * 
++*/
++
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <string.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <stdlib.h>
++#include <libgen.h>
++#include <linux/limits.h>
++
++#include "config.h"
++#include "util/file.h"
++#include "util/util.h"
++#include "util/message.h"
++#include "util/privilege.h"
++#include "util/config_parser.h"
++#include "util/registry.h"
++#include "util/mount.h"
++#include "util/mountlist.h"
++
++#include "../../runtime.h"
++
++
++int _singularity_runtime_mount_libs(struct mountlist *mountlist) {
++    char *tmpdir = singularity_registry_get("SESSIONDIR");
++    char *includelibs_string;
++
++    if ( ( includelibs_string = singularity_registry_get("CONTAINLIBS") ) != NULL ) {
++        char *libdir = joinpath(tmpdir, "/libs");
++        char *libdir_contained = joinpath(CONTAINER_MOUNTDIR, "/.singularity.d/libs");
++        char *tok = NULL;
++        char *current = strtok_r(strdup(includelibs_string), ",", &tok);
++
++        singularity_message(DEBUG, "Parsing SINGULARITY_CONTAINLIBS for user-specified libraries to include.\n");
++
++        free(includelibs_string);
++
++        singularity_message(DEBUG, "Checking if libdir in container exists: %s\n", libdir_contained);
++        if ( is_dir(libdir_contained) != 0 ) {
++            singularity_message(WARNING, "Library bind directory not present in container, update container\n");
++            char *ld_path = envar_path("LD_LIBRARY_PATH");
++            if ( ld_path == NULL ) {
++                singularity_message(DEBUG, "Setting LD_LIBRARY_PATH to '/.singularity.d/libs'\n");
++                envar_set("LD_LIBRARY_PATH", "/.singularity.d/libs", 1);
++            } else {
++                singularity_message(DEBUG, "Prepending '/.singularity.d/libs' to LD_LIBRARY_PATH\n");
++                envar_set("LD_LIBRARY_PATH", strjoin("/.singularity.d/libs:", ld_path), 1);
++            }
++        }
++        free(libdir_contained);
++
++        singularity_message(DEBUG, "Creating session libdir at: %s\n", libdir);
++        if ( container_mkpath_nopriv(libdir, 0755) != 0 ) {
++            singularity_message(ERROR, "Failed creating temp lib directory at: %s\n", libdir);
++            ABORT(255);
++        }
++
++        while (current != NULL ) {
++            char *dest = NULL;
++            char *source = NULL;
++
++            singularity_message(DEBUG, "Evaluating requested library path: %s\n", current);
++
++            dest = joinpath(libdir, basename(current));
++
++            if ( is_file(dest) == 0 ) {
++                singularity_message(VERBOSE3, "Staged library exists, skipping: %s\n", current);
++                current = strtok_r(NULL, ",", &tok);
++                continue;
++            }
++
++            if ( is_link(current) == 0 ) {
++                char *link_name;
++                ssize_t len;
++
++                link_name = (char *) malloc(PATH_MAX);
++
++                len = readlink(current, link_name, PATH_MAX-1); // Flawfinder: ignore
++                if ( ( len > 0 ) && ( len <= PATH_MAX) ) {
++                    link_name[len] = '\0';
++                    singularity_message(VERBOSE3, "Found library link source: %s -> %s\n", current, link_name);
++                    if ( link_name[0] == '/' ) {
++                        source = strdup(link_name);
++                    } else {
++                        if ( link_name[0] == '/' ) {
++                            source = strdup(link_name);
++                        } else {
++                            source = joinpath(dirname(strdup(current)), link_name);
++                        }
++                    }
++                } else {
++                    singularity_message(WARNING, "Failed reading library link for %s: %s\n", current, strerror(errno));
++                    ABORT(255);
++                }
++                free(link_name);
++
++            } else if (is_file(current) == 0 ) {
++                source = strdup(current);
++                singularity_message(VERBOSE3, "Found library source: %s\n", source);
++            } else {
++                singularity_message(WARNING, "Could not find library: %s\n", current);
++                current = strtok_r(NULL, ",", &tok);
++                continue;
++            }
++
++            singularity_message(DEBUG, "Binding library source here: %s -> %s\n", source, dest);
++
++            if ( fileput_nopriv(dest, "") != 0 ) {
++                singularity_message(ERROR, "Failed creating file at %s: %s\n", dest, strerror(errno));
++                ABORT(255);
++            }
++
++            singularity_message(VERBOSE, "Binding file '%s' to '%s'\n", source, dest);
++            if ( singularity_mount(source, dest, NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
++                    singularity_message(ERROR, "There was an error binding %s to %s: %s\n", source, dest, strerror(errno));
++                    ABORT(255);
++            }
++
++            free(source);
++            free(dest);
++            current = strtok_r(NULL, ",", &tok);
++        }
++
++        singularity_message(VERBOSE, "Queueing bind mount of libdir '%s' to '%s'\n", libdir, "/.singularity.d/libs");
++        mountlist_add(mountlist, libdir, strdup("/.singularity.d/libs"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
++    }
++
++    return(0);
++}
+diff --git a/src/lib/runtime/mounts/libs/libs.h b/src/lib/runtime/mounts/libs/libs.h
+new file mode 100644
+index 0000000..4a6bdff
+--- /dev/null
++++ b/src/lib/runtime/mounts/libs/libs.h
+@@ -0,0 +1,32 @@
++/* 
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ *
++ * Copyright (c) 2015-2017, Gregory M. Kurtzer. All rights reserved.
++ * 
++ * Copyright (c) 2016-2017, The Regents of the University of California,
++ * through Lawrence Berkeley National Laboratory (subject to receipt of any
++ * required approvals from the U.S. Dept. of Energy).  All rights reserved.
++ * 
++ * This software is licensed under a customized 3-clause BSD license.  Please
++ * consult LICENSE file distributed with the sources of this project regarding
++ * your rights to use or distribute this software.
++ * 
++ * NOTICE.  This Software was developed under funding from the U.S. Department of
++ * Energy and the U.S. Government consequently retains certain rights. As such,
++ * the U.S. Government has been granted for itself and others acting on its
++ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
++ * to reproduce, distribute copies to the public, prepare derivative works, and
++ * perform publicly and display publicly, and to permit other to do so. 
++ * 
++*/
++
++#ifndef __SINGULARITY_RUNTIME_MOUNT_LIBS_H_
++#define __SINGULARITY_RUNTIME_MOUNT_LIBS_H_
++
++struct mountlist;
++
++extern int _singularity_runtime_mount_libs(struct mountlist *);
++
++#endif /* __SINGULARITY_RUNTIME_MOUNT_LIBS_H */
++
+diff --git a/src/lib/runtime/mounts/mounts.c b/src/lib/runtime/mounts/mounts.c
+index 4419281..6fa52d1 100644
+--- a/src/lib/runtime/mounts/mounts.c
++++ b/src/lib/runtime/mounts/mounts.c
+@@ -32,6 +32,7 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
++#include "util/mountlist.h"
+ #include "util/privilege.h"
+ 
+ #include "./binds/binds.h"
+@@ -43,21 +44,31 @@
+ #include "./cwd/cwd.h"
+ #include "./userbinds/userbinds.h"
+ #include "./scratch/scratch.h"
++#include "./libs/libs.h"
++#include "./domounts/domounts.h"
+ 
+ 
+ int _singularity_runtime_mounts(void) {
+     int retval = 0;
++    struct mountlist mountlist;
++
++    singularity_runtime_domounts_init(&mountlist);
+ 
+     singularity_message(VERBOSE, "Running all mount components\n");
+-    retval += _singularity_runtime_mount_dev();
+-    retval += _singularity_runtime_mount_kernelfs();
+-    retval += _singularity_runtime_mount_hostfs();
+-    retval += _singularity_runtime_mount_binds();
+-    retval += _singularity_runtime_mount_home();
+-    retval += _singularity_runtime_mount_userbinds();
+-    retval += _singularity_runtime_mount_tmp();
+-    retval += _singularity_runtime_mount_scratch();
+-    retval += _singularity_runtime_mount_cwd();
++    retval += _singularity_runtime_mount_dev(&mountlist);
++    retval += _singularity_runtime_mount_kernelfs(&mountlist);
++    retval += _singularity_runtime_mount_hostfs(&mountlist);
++    retval += _singularity_runtime_mount_binds(&mountlist);
++    retval += _singularity_runtime_mount_home(&mountlist);
++    retval += _singularity_runtime_mount_userbinds(&mountlist);
++    retval += _singularity_runtime_mount_tmp(&mountlist);
++    retval += _singularity_runtime_mount_scratch(&mountlist);
++    retval += _singularity_runtime_mount_cwd(&mountlist);
++    retval += _singularity_runtime_mount_libs(&mountlist);
++
++    retval += _singularity_runtime_domounts(&mountlist);
++
++    mountlist_cleanup(&mountlist);
+ 
+     return(retval);
+ }
+diff --git a/src/lib/runtime/mounts/scratch/scratch.c b/src/lib/runtime/mounts/scratch/scratch.c
+index 66a5f60..4a8c829 100644
+--- a/src/lib/runtime/mounts/scratch/scratch.c
++++ b/src/lib/runtime/mounts/scratch/scratch.c
+@@ -41,17 +41,15 @@
+ #include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_scratch(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_scratch(struct mountlist *mountlist) {
+     char *scratchdir_path;
+     char *tmpdir_path;
+     char *sourcedir_path;
+-    int r;
+ 
+     singularity_message(DEBUG, "Getting SINGULARITY_SCRATCHDIR from environment\n");
+     if ( ( scratchdir_path = singularity_registry_get("SCRATCHDIR") ) == NULL ) {
+@@ -78,54 +76,20 @@ int _singularity_runtime_mount_scratch(void) {
+     free(tmpdir_path);
+ 
+     char *outside_token = NULL;
+-    char *current = strtok_r(strdup(scratchdir_path), ",", &outside_token);
+-
+-    free(scratchdir_path);
++    char *current = strtok_r(scratchdir_path, ",", &outside_token);
+ 
+     while ( current != NULL ) {
+-
+-        char *full_sourcedir_path = joinpath(sourcedir_path, basename(strdup(current)));
+-        char *full_destdir_path = joinpath(container_dir, current);
+-
+-        singularity_message(DEBUG, "Checking if bind point is already mounted: %s\n", current);
+-        if ( check_mounted(current) >= 0 ) {
+-            singularity_message(ERROR, "Not mounting requested scratch directory (already mounted in container): %s\n", current);
+-            ABORT(255);
+-        }
++        char *current_copy = strdup(current);
++        char *full_sourcedir_path = joinpath(sourcedir_path, basename(current_copy));
++        free(current_copy);
+ 
+         if ( container_mkpath_nopriv(full_sourcedir_path, 0750) < 0 ) {
+              singularity_message(ERROR, "Could not create scratch working directory %s: %s\n", full_sourcedir_path, strerror(errno));
+              ABORT(255);
+         }
+ 
+-        if ( is_dir(full_destdir_path) != 0 ) {
+-            if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                singularity_message(DEBUG, "Creating scratch directory inside container\n");
+-                r = container_mkpath_priv(full_destdir_path, 0755);
+-                if ( r < 0 ) {
+-                    singularity_message(VERBOSE, "Skipping scratch directory mount, could not create dir inside container %s: %s\n", current, strerror(errno));
+-                    current = strtok_r(NULL, ",", &outside_token);
+-                    continue;
+-                }
+-            } else {
+-                singularity_message(WARNING, "Skipping scratch directory mount, target directory does not exist: %s\n", current);
+-                current = strtok_r(NULL, ",", &outside_token);
+-                continue;
+-            }
+-        }
+-
+-        singularity_message(VERBOSE, "Binding '%s' to '%s/%s'\n", full_sourcedir_path, container_dir, current);
+-        r = singularity_mount(full_sourcedir_path, joinpath(container_dir, current), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL);
+-        if ( singularity_priv_userns_enabled() != 1 ) {
+-            r += singularity_mount(NULL, joinpath(container_dir, current), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL);
+-        }
+-        if ( r < 0 ) {
+-            singularity_message(WARNING, "Could not bind scratch directory into container %s: %s\n", full_sourcedir_path, strerror(errno));
+-            ABORT(255);
+-        }
+-
+-        free(full_sourcedir_path);
+-        free(full_destdir_path);
++        singularity_message(VERBOSE, "Queuing bind mount of '%s' to '%s'\n", full_sourcedir_path, current);
++        mountlist_add(mountlist, full_sourcedir_path, strdup(current), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
+ 
+         current = strtok_r(NULL, ",", &outside_token);
+ 
+@@ -134,6 +98,8 @@ int _singularity_runtime_mount_scratch(void) {
+             current = strtok_r(NULL, ",", &outside_token);
+         }
+     }
++
++    free(scratchdir_path);
+     return(0);
+ }
+ 
+diff --git a/src/lib/runtime/mounts/scratch/scratch.h b/src/lib/runtime/mounts/scratch/scratch.h
+index 00104c4..3ab46e4 100644
+--- a/src/lib/runtime/mounts/scratch/scratch.h
++++ b/src/lib/runtime/mounts/scratch/scratch.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_SCRATCH_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_SCRATCH_H_
+ 
+-extern int _singularity_runtime_mount_scratch(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_scratch(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_SCRATCH_H */
+ 
+diff --git a/src/lib/runtime/mounts/tmp/tmp.c b/src/lib/runtime/mounts/tmp/tmp.c
+index 7384b4a..1969306 100644
+--- a/src/lib/runtime/mounts/tmp/tmp.c
++++ b/src/lib/runtime/mounts/tmp/tmp.c
+@@ -36,16 +36,14 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
+-#include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_tmp(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_tmp(struct mountlist *mountlist) {
+     char *tmp_source;
+     char *vartmp_source;
+ 
+@@ -74,60 +72,26 @@ int _singularity_runtime_mount_tmp(void) {
+         free(tmpdirpath);
+     }
+ 
+-    if ( check_mounted("/tmp") < 0 ) {
+-        if ( s_mkpath(tmp_source, 0755) < 0 ) {
+-            singularity_message(ERROR, "Could not create source /tmp directory %s: %s\n", tmp_source, strerror(errno));
+-            ABORT(255);
+-        }
+-        if ( is_dir(tmp_source) == 0 ) {
+-            if ( is_dir(joinpath(container_dir, "/tmp")) == 0 ) {
+-                singularity_message(VERBOSE, "Mounting directory: /tmp\n");
+-                if ( singularity_mount(tmp_source, joinpath(container_dir, "/tmp"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Failed to mount %s -> /tmp: %s\n", tmp_source, strerror(errno));
+-                    ABORT(255);
+-                }
+-                if ( singularity_priv_userns_enabled() != 1 ) {
+-                    if ( singularity_mount(NULL, joinpath(container_dir, "/tmp"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL) < 0 ) {
+-                        singularity_message(ERROR, "Failed to remount /tmp: %s\n", strerror(errno));
+-                        ABORT(255);
+-                    }
+-                }
+-            } else {
+-                singularity_message(VERBOSE, "Could not mount container's /tmp directory: does not exist\n");
+-            }
+-        } else {
+-            singularity_message(VERBOSE, "Could not mount host's /tmp directory (%s): does not exist\n", tmp_source);
+-        }
++    if ( s_mkpath(tmp_source, 0755) < 0 ) {
++        singularity_message(ERROR, "Could not create source /tmp directory %s: %s\n", tmp_source, strerror(errno));
++        ABORT(255);
++    }
++    if ( is_dir(tmp_source) == 0 ) {
++        singularity_message(VERBOSE, "Queuing bind mount of /tmp\n");
++        mountlist_add(mountlist, strdup(tmp_source), strdup("/tmp"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
+     } else {
+-        singularity_message(VERBOSE, "Not mounting '/tmp', already mounted\n");
++        singularity_message(VERBOSE, "Could not mount host's /tmp directory (%s): does not exist\n", tmp_source);
+     }
+ 
+-    if ( check_mounted("/var/tmp") < 0 ) {
+-        if ( s_mkpath(vartmp_source, 0755) < 0 ) {
+-            singularity_message(ERROR, "Could not create source /var/tmp directory %s: %s\n", vartmp_source, strerror(errno));
+-            ABORT(255);
+-        }
+-        if ( is_dir(vartmp_source) == 0 ) {
+-            if ( is_dir(joinpath(container_dir, "/var/tmp")) == 0 ) {
+-                singularity_message(VERBOSE, "Mounting directory: /var/tmp\n");
+-                if ( singularity_mount(vartmp_source, joinpath(container_dir, "/var/tmp"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-                    singularity_message(ERROR, "Failed to mount %s -> /var/tmp: %s\n", vartmp_source, strerror(errno));
+-                    ABORT(255);
+-                }
+-                if ( singularity_priv_userns_enabled() != 1 ) {
+-                    if ( singularity_mount(NULL, joinpath(container_dir, "/var/tmp"), NULL, MS_BIND|MS_NOSUID|MS_REC|MS_NODEV|MS_REMOUNT, NULL) < 0 ) {
+-                        singularity_message(ERROR, "Failed to remount /var/tmp: %s\n", strerror(errno));
+-                        ABORT(255);
+-                    }
+-                }
+-            } else {
+-                singularity_message(VERBOSE, "Could not mount container's /var/tmp directory: does not exist\n");
+-            }
+-        } else {
+-            singularity_message(VERBOSE, "Could not mount host's /var/tmp directory (%s): does not exist\n", vartmp_source);
+-        }
++    if ( s_mkpath(vartmp_source, 0755) < 0 ) {
++        singularity_message(ERROR, "Could not create source /var/tmp directory %s: %s\n", vartmp_source, strerror(errno));
++        ABORT(255);
++    }
++    if ( is_dir(vartmp_source) == 0 ) {
++        singularity_message(VERBOSE, "Queuing bind mount of /var/tmp\n");
++        mountlist_add(mountlist, strdup(vartmp_source), strdup("/var/tmp"), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, 0);
+     } else {
+-        singularity_message(VERBOSE, "Not mounting '/var/tmp', already mounted\n");
++        singularity_message(VERBOSE, "Could not mount host's /var/tmp directory (%s): does not exist\n", vartmp_source);
+     }
+ 
+     free(tmp_source);
+diff --git a/src/lib/runtime/mounts/tmp/tmp.h b/src/lib/runtime/mounts/tmp/tmp.h
+index d793b79..b6b2590 100644
+--- a/src/lib/runtime/mounts/tmp/tmp.h
++++ b/src/lib/runtime/mounts/tmp/tmp.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_TMP_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_TMP_H_
+ 
+-extern int _singularity_runtime_mount_tmp(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_tmp(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_TMP_H */
+ 
+diff --git a/src/lib/runtime/mounts/userbinds/userbinds.c b/src/lib/runtime/mounts/userbinds/userbinds.c
+index 7e6f0b8..f4dfd6b 100644
+--- a/src/lib/runtime/mounts/userbinds/userbinds.c
++++ b/src/lib/runtime/mounts/userbinds/userbinds.c
+@@ -35,16 +35,14 @@
+ #include "util/file.h"
+ #include "util/util.h"
+ #include "util/message.h"
+-#include "util/privilege.h"
+ #include "util/config_parser.h"
+ #include "util/registry.h"
+-#include "util/mount.h"
++#include "util/mountlist.h"
+ 
+ #include "../../runtime.h"
+ 
+ 
+-int _singularity_runtime_mount_userbinds(void) {
+-    char *container_dir = CONTAINER_FINALDIR;
++int _singularity_runtime_mount_userbinds(struct mountlist *mountlist) {
+     char *bind_path_string;
+ 
+     singularity_message(DEBUG, "Checking for environment variable 'SINGULARITY_BINDPATH'\n");
+@@ -59,12 +57,10 @@ int _singularity_runtime_mount_userbinds(void) {
+         singularity_message(DEBUG, "Parsing SINGULARITY_BINDPATH for user-specified bind mounts.\n");
+         char *outside_token = NULL;
+         char *inside_token = NULL;
+-        char *current = strtok_r(strdup(bind_path_string), ",", &outside_token);
+-
+-        free(bind_path_string);
++        char *current = strtok_r(bind_path_string, ",", &outside_token);
+ 
+         while ( current != NULL ) {
+-            int read_only = 0;
++            unsigned long read_only = 0;
+             char *source = strtok_r(current, ":", &inside_token);
+             char *dest = strtok_r(NULL, ":", &inside_token);
+             char *opts = strtok_r(NULL, ":", &inside_token);
+@@ -81,7 +77,7 @@ int _singularity_runtime_mount_userbinds(void) {
+                 if ( strcmp(opts, "rw") == 0 ) {
+                     // This is the default
+                 } else if ( strcmp(opts, "ro") == 0 ) {
+-                    read_only = 1;
++                    read_only = MS_RDONLY;
+                 } else {
+                     singularity_message(WARNING, "Not mounting requested bind point, invalid mount option %s: %s\n", opts, dest);
+                     continue;
+@@ -89,79 +85,12 @@ int _singularity_runtime_mount_userbinds(void) {
+             }
+ 
+ 
+-            singularity_message(DEBUG, "Checking if bind point is already mounted: %s\n", dest);
+-            if ( check_mounted(dest) >= 0 ) {
+-                singularity_message(WARNING, "Not mounting requested bind point (already mounted in container): %s\n", dest);
+-                continue;
+-            }
+-
+-            if ( ( is_file(source) == 0 ) && ( is_file(joinpath(container_dir, dest)) < 0 ) ) {
+-                if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                    char *dir = dirname(strdup(dest));
+-                    if ( is_dir(joinpath(container_dir, dir)) < 0 ) {
+-                        singularity_message(VERBOSE3, "Creating bind directory on overlay file system: %s\n", dest);
+-                        if ( container_mkpath_nopriv(joinpath(container_dir, dir), 0755) < 0 ) {
+-                            singularity_message(VERBOSE3, "Retrying with privileges to create bind directory on overlay file system: %s\n", dest);
+-                            if ( container_mkpath_priv(joinpath(container_dir, dir), 0755) < 0 ) {
+-                                singularity_message(ERROR, "Could not create basedir for file bind %s: %s\n", dest, strerror(errno));
+-                                continue;
+-                            }
+-                        }
+-                    }
+-                    singularity_message(VERBOSE3, "Creating bind file on overlay file system: %s\n", dest);
+-                    if ( fileput_priv(joinpath(container_dir, dest), "") != 0 ) {
+-                        continue;
+-                    }
+-                    singularity_message(DEBUG, "Created bind file: %s\n", dest);
+-                } else {
+-                    singularity_message(WARNING, "Skipping user bind, non existent bind point (file) in container: '%s'\n", dest);
+-                    continue;
+-                }
+-            } else if ( ( is_dir(source) == 0 ) && ( is_dir(joinpath(container_dir, dest)) < 0 ) ) {
+-                if ( singularity_registry_get("OVERLAYFS_ENABLED") != NULL ) {
+-                    singularity_message(VERBOSE3, "Creating bind directory on overlay file system: %s\n", dest);
+-                    if ( container_mkpath_nopriv(joinpath(container_dir, dest), 0755) < 0 ) {
+-                        singularity_message(VERBOSE3, "Retrying with privileges to create bind directory on overlay file system: %s\n", dest);
+-                        if ( container_mkpath_priv(joinpath(container_dir, dest), 0755) < 0 ) {
+-                            singularity_message(WARNING, "Skipping user bind, could not create bind point %s: %s\n", dest, strerror(errno));
+-                            continue;
+-                        }
+-                    }
+-                } else {
+-                    singularity_message(WARNING, "Skipping user bind, non existent bind point (directory) in container: '%s'\n", dest);
+-                    continue;
+-                }
+-            }
+-
+-            singularity_message(VERBOSE, "Binding '%s' to '%s/%s'\n", source, container_dir, dest);
+-            if ( singularity_mount(source, joinpath(container_dir, dest), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC, NULL) < 0 ) {
+-                singularity_message(ERROR, "There was an error binding the path %s: %s\n", source, strerror(errno));
+-                ABORT(255);
+-            }
+-            if ( read_only ) {
+-                if ( singularity_priv_userns_enabled() == 1 ) {
+-                    singularity_message(WARNING, "Can not make bind mount read only within the user namespace: %s\n", dest);
+-                } else {
+-                    singularity_message(VERBOSE, "Remounting %s read-only\n", dest);
+-                    if ( singularity_mount(NULL, joinpath(container_dir, dest), NULL, MS_RDONLY|MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL) < 0 ) {
+-                        singularity_message(ERROR, "There was an error write-protecting the path %s: %s\n", source, strerror(errno));
+-                        ABORT(255);
+-                    }
+-                    if ( access(joinpath(container_dir, dest), W_OK) == 0 || (errno != EROFS && errno != EACCES) ) { // Flawfinder: ignore (precautionary confirmation, not necessary)
+-                        singularity_message(ERROR, "Failed to write-protect the path %s: %s\n", source, strerror(errno));
+-                        ABORT(255);
+-                    }
+-                }
+-            } else {
+-                if ( singularity_priv_userns_enabled() <= 0 ) {
+-                    if ( singularity_mount(NULL, joinpath(container_dir, dest), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|MS_REMOUNT, NULL) < 0 ) {
+-                        singularity_message(ERROR, "There was an error remounting the path %s: %s\n", source, strerror(errno));
+-                        ABORT(255);
+-                    }
+-                }
+-            }
++            singularity_message(VERBOSE, "Queuing bind mount of '%s' to '%s'\n", source, dest);
++            mountlist_add(mountlist, strdup(source), strdup(dest), NULL, MS_BIND|MS_NOSUID|MS_NODEV|MS_REC|read_only, 0);
+         }
+ 
++        free(bind_path_string);
++
+         singularity_message(DEBUG, "Unsetting environment variable 'SINGULARITY_BINDPATH'\n");
+         unsetenv("SINGULARITY_BINDPATH");
+     } else {
+diff --git a/src/lib/runtime/mounts/userbinds/userbinds.h b/src/lib/runtime/mounts/userbinds/userbinds.h
+index cd14d5d..34cd52a 100644
+--- a/src/lib/runtime/mounts/userbinds/userbinds.h
++++ b/src/lib/runtime/mounts/userbinds/userbinds.h
+@@ -24,7 +24,9 @@
+ #ifndef __SINGULARITY_RUNTIME_MOUNT_USERBINDS_H_
+ #define __SINGULARITY_RUNTIME_MOUNT_USERBINDS_H_
+ 
+-extern int _singularity_runtime_mount_userbinds(void);
++struct mountlist;
++
++extern int _singularity_runtime_mount_userbinds(struct mountlist *mountlist);
+ 
+ #endif /* __SINGULARITY_RUNTIME_MOUNT_USERBINDS_H */
+ 
+diff --git a/src/util/Makefile.am b/src/util/Makefile.am
+index ad58525..7a78e4f 100644
+--- a/src/util/Makefile.am
++++ b/src/util/Makefile.am
+@@ -20,6 +20,8 @@ EXTRA_DIST = cleanupd.c \
+ 			 message.h \
+ 			 mount.c \
+ 			 mount.h \
++			 mountlist.c \
++			 mountlist.h \
+ 			 privilege.c \
+ 			 privilege.h \
+ 			 registry.c \
+diff --git a/src/util/config_defaults.h.in b/src/util/config_defaults.h.in
+index 6bfeb78..b1676f8 100644
+--- a/src/util/config_defaults.h.in
++++ b/src/util/config_defaults.h.in
+@@ -41,6 +41,9 @@
+ #define ENABLE_OVERLAY "enable overlay"
+ #define ENABLE_OVERLAY_DEFAULT "try"
+ 
++#define ENABLE_UNDERLAY "enable underlay"
++#define ENABLE_UNDERLAY_DEFAULT "no"
++
+ #define CONFIG_PASSWD "config passwd"
+ #define CONFIG_PASSWD_DEFAULT 1
+ 
+diff --git a/src/util/mount.c b/src/util/mount.c
+index f609f82..46d2874 100644
+--- a/src/util/mount.c
++++ b/src/util/mount.c
+@@ -127,7 +127,7 @@ int singularity_mount(const char *source, const char *target,
+     return ret;
+ }
+ 
+-int check_mounted(char *mountpoint) {
++int check_mounted(const char *mountpoint) {
+     int retval = -1;
+     FILE *mounts;
+     char *line = (char *)malloc(MAX_LINE_LEN);
+diff --git a/src/util/mount.h b/src/util/mount.h
+index 8c80ea9..afca177 100644
+--- a/src/util/mount.h
++++ b/src/util/mount.h
+@@ -20,6 +20,6 @@
+ int singularity_mount(const char *source, const char *target,
+                       const char *filesystemtype, unsigned long mountflags,
+                       const void *data);
+-int check_mounted(char *mountpoint);
++int check_mounted(const char *mountpoint);
+ 
+ #endif /* __MOUNT_H_ */
+diff --git a/src/util/mountlist.c b/src/util/mountlist.c
+new file mode 100644
+index 0000000..5aded49
+--- /dev/null
++++ b/src/util/mountlist.c
+@@ -0,0 +1,82 @@
++/*
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ * 
++ * See the COPYRIGHT.md file at the top-level directory of this distribution and at
++ * https://github.com/singularityware/singularity/blob/master/COPYRIGHT.md.
++ * 
++ * This file is part of the Singularity Linux container project. It is subject to the license
++ * terms in the LICENSE.md file found in the top-level directory of this distribution and
++ * at https://github.com/singularityware/singularity/blob/master/LICENSE.md. No part
++ * of Singularity, including this file, may be copied, modified, propagated, or distributed
++ * except according to the terms contained in the LICENSE.md file.
++ * 
++*/
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++#include <stdlib.h>
++
++#include "config.h"
++#include "util/util.h"
++#include "util/mount.h"
++#include "util/mountlist.h"
++#include "util/message.h"
++
++void mountlist_add(struct mountlist *mountlist,
++                  const char *source, const char *target,
++                  const char *filesystemtype, unsigned long mountflags,
++                  unsigned long mountlistflags) {
++
++    struct mountlist_point *point;
++    point = (struct mountlist_point *) malloc(sizeof(struct mountlist_point));
++    if (mountlist->first == NULL)
++        mountlist->first = point;
++    if (mountlist->last != NULL)
++        mountlist->last->next = point;
++    mountlist->last = point;
++    point->next = NULL;
++    point->source = source;
++    point->target = target;
++    point->filesystemtype = filesystemtype;
++    point->mountflags = mountflags;
++    point->mountlistflags = mountlistflags;
++    point->resolved_target = NULL;
++}
++
++void mountlist_cleanup(struct mountlist *mountlist) {
++    struct mountlist_point *point = mountlist->first;
++
++    while (point != NULL) {
++        if ( point->source != NULL)
++            free((char *)point->source);
++        if ( point->target != NULL)
++            free((char *)point->target);
++        if ( point->resolved_target != NULL)
++            free(point->resolved_target);
++        struct mountlist_point *next = point->next;
++        free(point);
++        point = next;
++    }
++
++    mountlist->first = NULL;
++    mountlist->last = NULL;
++}
++
++int singularity_mount_point(struct mountlist_point *point) {
++
++    int retval;
++    char *target = joinpath(CONTAINER_FINALDIR, point->target);
++    const char *source = point->source;
++    if (source == NULL)
++        source = point->target;
++
++    retval = singularity_mount(source, target,
++        point->filesystemtype, point->mountflags, NULL);
++
++    free(target);
++    return retval;
++}
+diff --git a/src/util/mountlist.h b/src/util/mountlist.h
+new file mode 100644
+index 0000000..66d44a5
+--- /dev/null
++++ b/src/util/mountlist.h
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2017-2018, SyLabs, Inc. All rights reserved.
++ * Copyright (c) 2017, SingularityWare, LLC. All rights reserved.
++ * 
++ * See the COPYRIGHT.md file at the top-level directory of this distribution and at
++ * https://github.com/singularityware/singularity/blob/master/COPYRIGHT.md.
++ * 
++ * This file is part of the Singularity Linux container project. It is subject to the license
++ * terms in the LICENSE.md file found in the top-level directory of this distribution and
++ * at https://github.com/singularityware/singularity/blob/master/LICENSE.md. No part
++ * of Singularity, including this file, may be copied, modified, propagated, or distributed
++ * except according to the terms contained in the LICENSE.md file.
++ * 
++*/
++
++
++#ifndef __MOUNTLIST_H_
++#define __MOUNTLIST_H_
++
++// mountlist flags
++#define ML_ONLY_IF_POINT_PRESENT 0x01
++
++struct mountlist_point {
++    struct mountlist_point *next;
++    const char *source;
++    const char *target;
++    const char *filesystemtype;
++    unsigned long mountflags;
++    unsigned long mountlistflags;
++    char *resolved_target;
++};
++
++struct mountlist {
++    struct mountlist_point *first;
++    struct mountlist_point *last;
++};
++
++// if source is NULL, it will be copied from target
++// CONTAINER_FINALDIR will be prepended to target
++// target will be freed by mountlist_cleanup, as will source if it isn't NULL
++void mountlist_add(struct mountlist *mountlist,
++                      const char *source, const char *target,
++                      const char *filesystemtype, unsigned long mountflags,
++                      unsigned long mountlistflags);
++void mountlist_cleanup(struct mountlist *mountlist);
++
++int singularity_mount_point(struct mountlist_point *point);
++
++#endif /* __MOUNTLIST_H_ */

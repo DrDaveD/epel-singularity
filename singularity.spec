@@ -23,7 +23,7 @@
 
 %global _hardened_build 1
 
-%{!?_rel:%{expand:%%global _rel 1.4}}
+%{!?_rel:%{expand:%%global _rel 1.1}}
 
 %if ! 0%{?osg}
 %define require_python3 1
@@ -33,7 +33,7 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.5.999
+Version: 2.6.0
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
@@ -43,12 +43,12 @@ URL: http://singularity.lbl.gov/
 Source: https://github.com/singularityware/singularity/releases/download/2.6.0-rc1/%{name}-%{version}.tar.gz
 Source2: %{name}.abignore
 %if %{require_python3}
-# from https://github.com/singularityware/singularity/pull/1762.patch
-Patch1: 1762.patch
+# from https://github.com/singularityware/singularity/pull/1818.patch
+Patch1: 1818.patch
 %endif
-# Not from https://github.com/singularityware/singularity/pull/1638.diff
+# Not from https://github.com/singularityware/singularity/pull/1817.diff
 #  because that includes renames; instead, check out the PR and do git diff
-Patch2: 1638.diff
+Patch2: 1817.diff
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 %if %{require_python3}
@@ -191,6 +191,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Aug 07 2018 Dave Dykstra <dwd@fnal.gov> - 2.6.0-1.1
+- Update to released upstream 2.6.0
+- Rename PR 1638 to 1817
+- Rename PR 1762 to 1818
+- Note that PR 1324 was also renamed, to 1819
+
 * Tue Jul 24 2018 Dave Dykstra <dwd@fnal.gov> - 2.5.999-1.4
 - Move the Requires /usr/bin/python3 to be under %package runtime instead
   of under its %description.
