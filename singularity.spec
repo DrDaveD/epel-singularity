@@ -39,14 +39,13 @@ Release: %{_rel}%{?dist}
 License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
-#Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
-Source: https://github.com/singularityware/singularity/releases/download/%{version}/%{name}-%{version}.tar.gz
+Source: https://github.com/sylabs/singularity/releases/download/%{version}/%{name}-%{version}.tar.gz
 Source2: %{name}.abignore
 %if %{require_python3}
-# from https://github.com/singularityware/singularity/pull/1818.patch
+# from https://github.com/sylabs/singularity/pull/1818.patch
 Patch1: 1818.patch
 %endif
-# Not from https://github.com/singularityware/singularity/pull/1817.diff
+# Not from https://github.com/sylabs/singularity/pull/1817.diff
 #  because that includes renames; instead, check out the PR and do git diff
 Patch2: 1817.diff
 ExclusiveOS: linux
