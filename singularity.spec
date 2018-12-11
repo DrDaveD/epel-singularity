@@ -33,14 +33,14 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.6.0
+Version: 2.6.1
 Release: %{_rel}%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD and LBNL BSD
 Group: System Environment/Base
 URL: http://singularity.lbl.gov/
 #Source: https://github.com/singularityware/singularity/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
-Source: https://github.com/singularityware/singularity/releases/download/2.6.0-rc1/%{name}-%{version}.tar.gz
+Source: https://github.com/singularityware/singularity/releases/download/%{version}/%{name}-%{version}.tar.gz
 Source2: %{name}.abignore
 %if %{require_python3}
 # from https://github.com/singularityware/singularity/pull/1818.patch
@@ -192,6 +192,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Dec 11 2018 Dave Dykstra <dwd@fedoraproject.org> - 2.6.1-1.1
+- Update to released upstream 2.6.1
+
 * Tue Aug 07 2018 Dave Dykstra <dwd@fnal.gov> - 2.6.0-1.1
 - Update to released upstream 2.6.0
 - Rename PR 1638 to 1817
