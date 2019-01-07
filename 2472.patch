@@ -1,0 +1,265 @@
+From 00803cd7add9a7431ec1ba34f5916c98d3f797b0 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Tue, 4 Dec 2018 16:01:30 -0600
+Subject: [PATCH 1/8] use golang rpm instead of downloading current version
+
+---
+ dist/rpm/singularity.spec.in | 12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/dist/rpm/singularity.spec.in b/dist/rpm/singularity.spec.in
+index cf75e01b1..83aeec9e9 100644
+--- a/dist/rpm/singularity.spec.in
++++ b/dist/rpm/singularity.spec.in
+@@ -39,6 +39,7 @@ URL: https://www.sylabs.io/singularity/
+ Source: %{name}-%{version}.tar.gz
+ ExclusiveOS: linux
+ BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
++BuildRequires: golang
+ BuildRequires: wget
+ BuildRequires: git
+ BuildRequires: gcc
+@@ -72,17 +73,11 @@ mkdir %{name}-%{version}
+ %build
+ cd %{name}-%{version}
+ 
+-#XXX: We would like to remove the download of Go in the future
+-GOTAR=go%{goversion}.linux-amd64.tar.gz
+-wget https://dl.google.com/go/$GOTAR
+-tar -xf $GOTAR
+-
+ mkdir -p gopath/%{singgopath}
+ tar -C "gopath/src/github.com/sylabs/" -xf "%SOURCE0"
+ 
+-export GOROOT=$PWD/go
+ export GOPATH=$PWD/gopath
+-export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
++export PATH=$GOPATH/bin:$PATH
+ cd $GOPATH/%{singgopath}
+ 
+ ./mconfig -V %{version}-%{release} --prefix=%{_prefix} --exec-prefix=%{_exec_prefix} \
+@@ -96,9 +91,8 @@ make
+ %install
+ cd %{name}-%{version}
+ 
+-export GOROOT=$PWD/go
+ export GOPATH=$PWD/gopath
+-export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
++export PATH=$GOPATH/bin:$PATH
+ cd $GOPATH/%{singgopath}/builddir
+ 
+ mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
+
+From a4f7497b7c6f0b26515426ea71d3301607fe8ce1 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Tue, 4 Dec 2018 16:03:01 -0600
+Subject: [PATCH 2/8] use golang rpm
+
+---
+ .travis/rpmbuild_test | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/.travis/rpmbuild_test b/.travis/rpmbuild_test
+index 1b0552895..40e95d839 100755
+--- a/.travis/rpmbuild_test
++++ b/.travis/rpmbuild_test
+@@ -3,7 +3,7 @@
+ # this script runs as root under docker
+ 
+ # build and install
+-yum install -y rpm-build make yum-utils gcc binutils util-linux-ng which
++yum install -y rpm-build make golang yum-utils gcc binutils util-linux-ng which
+ yum install -y openssl-devel libuuid-devel libseccomp-devel e2fsprogs
+ 
+ # switch to an unprivileged user with sudo privileges
+@@ -23,9 +23,8 @@ su testuser -c '
+   make -C builddir rpm
+   sudo yum install -y $HOME/rpmbuild/RPMS/*/*.rpm
+   BLD=`echo $HOME/rpmbuild/BUILD/singularity-*`
+-  export GOROOT=$BLD/go
+   export GOPATH=$BLD/gopath
+-  PATH=$GOROOT/bin:$GOPATH/bin:$PATH
++  PATH=$GOPATH/bin:$PATH
+ 
+   cd $GOPATH/src/github.com/sylabs/singularity
+   make -C builddir test
+
+From 954c7f207047311f8ed324387cc8099f78fde727 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Tue, 4 Dec 2018 16:11:21 -0600
+Subject: [PATCH 3/8] install epel-release before golang
+
+---
+ .travis/rpmbuild_test | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/.travis/rpmbuild_test b/.travis/rpmbuild_test
+index 40e95d839..a1795fbc3 100755
+--- a/.travis/rpmbuild_test
++++ b/.travis/rpmbuild_test
+@@ -3,8 +3,10 @@
+ # this script runs as root under docker
+ 
+ # build and install
+-yum install -y rpm-build make golang yum-utils gcc binutils util-linux-ng which
++yum install -y rpm-build make yum-utils gcc binutils util-linux-ng which
+ yum install -y openssl-devel libuuid-devel libseccomp-devel e2fsprogs
++yum install -y epel-release
++yum install -y golang
+ 
+ # switch to an unprivileged user with sudo privileges
+ yum install -y sudo
+
+From c5f846fb274d435091591229b67da88bad7cdd7c Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Tue, 4 Dec 2018 17:08:58 -0600
+Subject: [PATCH 4/8] goversion no longer needed
+
+---
+ dist/rpm/singularity.spec.in | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/dist/rpm/singularity.spec.in b/dist/rpm/singularity.spec.in
+index 83aeec9e9..5a4aecd4e 100644
+--- a/dist/rpm/singularity.spec.in
++++ b/dist/rpm/singularity.spec.in
+@@ -21,7 +21,6 @@
+ # 
+ # 
+ 
+-%define goversion @GO_VERSION@
+ %define singgopath src/github.com/sylabs/singularity
+ 
+ # Disable debugsource packages; otherwise it ends up with an empty %files
+
+From 856926e808049566b3cc5931e4ec1006da861728 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Wed, 5 Dec 2018 16:18:47 -0600
+Subject: [PATCH 5/8] fix setting of short version
+
+---
+ mconfig | 16 +++++++---------
+ 1 file changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/mconfig b/mconfig
+index d808222f8..8fcd0650c 100755
+--- a/mconfig
++++ b/mconfig
+@@ -31,11 +31,6 @@
+ appsec=0
+ 
+ package_name=singularity
+-short_version=`(git describe --abbrev=0 --match 'v[0-9]*' --always 2>/dev/null || cat VERSION 2>/dev/null || echo "") | sed -e "s/^v//;s/-/_/g;s/_/-/;s/_/./g"`
+-if echo $short_version | grep -q '\-rc'; then
+-    short_version=$(echo $short_version | rev | cut -f 2- -d '-' | rev)
+-fi
+-
+ package_version=`(git describe --match 'v[0-9]*' --dirty --always 2>/dev/null || cat VERSION 2>/dev/null || echo "") | sed -e "s/^v//;s/-/_/g;s/_/-/;s/_/./g"`
+ go_version="`grep -A 1 ^go: .travis.yml 2>/dev/null|sed -n 's/.*- "//;s/"//p'`"
+ 
+@@ -357,6 +355,7 @@ while [ $# -ne 0 ]; do
+   *) break;;
+  esac
+ done
++short_version="`echo "$package_version"|sed 's/-.*//'`"
+ #
+ # non-option param
+ if [ $# != 0 ]; then
+@@ -765,13 +764,12 @@ cat $makeit_fragsdir/Makefile.stub | awk \
+ RPMSPEC=singularity.spec
+ echo "=> generating $RPMSPEC ..."
+ rm -f $sourcedir/$RPMSPEC
+-VERSION="`echo "$package_version"|sed 's/-.*//'`"
+-RELEASE="`echo "$package_version"|sed 's/[^-]*-//'`"
+-if [ "$VERSION" = "$RELEASE" ]; then
++release="`echo "$package_version"|sed 's/[^-]*-//'`"
++if [ "$short_version" = "$release" ]; then
+     # $package_version has no dash
+-    RELEASE=1
++    release=1
+ fi
+-sed "s/@PACKAGE_VERSION@/$VERSION/;s/@PACKAGE_RELEASE@/$RELEASE/;s/@GO_VERSION@/$go_version/" $sourcedir/dist/rpm/$RPMSPEC.in >$sourcedir/$RPMSPEC
++sed "s/@PACKAGE_VERSION@/$short_version/;s/@PACKAGE_RELEASE@/$release/;s/@GO_VERSION@/$go_version/" $sourcedir/dist/rpm/$RPMSPEC.in >$sourcedir/$RPMSPEC
+ 
+ 
+ 
+
+From 0f0238eaa423696c50d4a11145963c0f701ee8f9 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Wed, 5 Dec 2018 16:31:15 -0600
+Subject: [PATCH 6/8] remove find warnings from gengodep
+
+---
+ makeit/gengodep | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/makeit/gengodep b/makeit/gengodep
+index 70930f036..7099d2580 100755
+--- a/makeit/gengodep
++++ b/makeit/gengodep
+@@ -7,7 +7,7 @@ prefix=${path%$repo*}
+ 
+ for dep in $(go list -f '{{ .Deps }}' $1 | tr -d '[]'); do
+     if [ ! -n "${dep%$repo*}" ]; then
+-        for gofile in $(find $prefix$dep -name "*.go"); do
++        for gofile in $(find $prefix$dep -name "*.go" 2>/dev/null); do
+             gofiles="$gofiles $gofile"
+         done
+     fi
+
+From d08487862103bc75d4868a88e935fe892ecc7604 Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Fri, 14 Dec 2018 16:28:54 -0600
+Subject: [PATCH 7/8] no use for go_version anymore
+
+---
+ mconfig | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mconfig b/mconfig
+index 8fcd0650c..088de6349 100755
+--- a/mconfig
++++ b/mconfig
+@@ -33,7 +33,6 @@ tgtstatic=0
+ 
+ package_name=singularity
+ package_version=`(git describe --match 'v[0-9]*' --dirty --always 2>/dev/null || cat VERSION 2>/dev/null || echo "") | sed -e "s/^v//;s/-/_/g;s/_/-/;s/_/./g"`
+-go_version="`grep -A 1 ^go: .travis.yml 2>/dev/null|sed -n 's/.*- "//;s/"//p'`"
+ 
+ prefix=
+ exec_prefix=
+@@ -769,7 +768,7 @@ if [ "$short_version" = "$release" ]; then
+     # $package_version has no dash
+     release=1
+ fi
+-sed "s/@PACKAGE_VERSION@/$short_version/;s/@PACKAGE_RELEASE@/$release/;s/@GO_VERSION@/$go_version/" $sourcedir/dist/rpm/$RPMSPEC.in >$sourcedir/$RPMSPEC
++sed "s/@PACKAGE_VERSION@/$short_version/;s/@PACKAGE_RELEASE@/$release/" $sourcedir/dist/rpm/$RPMSPEC.in >$sourcedir/$RPMSPEC
+ 
+ 
+ 
+
+From cf9f05530a2e82b3ed737d857c7430d9f9ef2d4a Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Thu, 3 Jan 2019 17:38:43 -0600
+Subject: [PATCH 8/8] support suse go rpm
+
+---
+ dist/rpm/singularity.spec.in | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/dist/rpm/singularity.spec.in b/dist/rpm/singularity.spec.in
+index 5a4aecd4e..c3f7d20da 100644
+--- a/dist/rpm/singularity.spec.in
++++ b/dist/rpm/singularity.spec.in
+@@ -38,7 +38,11 @@ URL: https://www.sylabs.io/singularity/
+ Source: %{name}-%{version}.tar.gz
+ ExclusiveOS: linux
+ BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
++%if "%{_target_vendor}" == "suse"
++BuildRequires: go
++%else
+ BuildRequires: golang
++%endif
+ BuildRequires: wget
+ BuildRequires: git
+ BuildRequires: gcc
