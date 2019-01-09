@@ -30,7 +30,7 @@
 Summary: Application and environment virtualization
 Name: singularity
 Version: 3.0.2
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
 Group: System Environment/Base
@@ -43,6 +43,8 @@ Patch1: 2472.patch
 Patch2: 2481.patch
 # https://github.com/sylabs/singularity/pull/2478.patch
 Patch3: 2478.patch
+# https://github.com/sylabs/singularity/pull/2531.patch
+Patch4: 2531.patch
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 %if "%{_target_vendor}" == "suse"
@@ -95,6 +97,7 @@ cd $GOPATH/%{singgopath}
 patch -p1 <%{PATCH1}
 patch -p1 <%{PATCH2}
 patch -p1 <%{PATCH3}
+patch -p1 <%{PATCH4}
 
 ./mconfig -V %{version}-%{release} --prefix=%{_prefix} --exec-prefix=%{_exec_prefix} \
 	--bindir=%{_bindir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
@@ -141,6 +144,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Jan 09 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.2-1.2
+- Add patch for PR 2531
+
 * Mon Jan 07 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.2-1.1
 - Update to upstream 3.0.2
 - Added patches for PRs 2472, 2478, 2481
