@@ -1,0 +1,206 @@
+From cebde4cf8ace0a67c16a9b99e0f731ea3d16ea99 Mon Sep 17 00:00:00 2001
+From: Cedric Clerget <cedric.clerget@gmail.com>
+Date: Wed, 9 Jan 2019 15:41:35 +0100
+Subject: [PATCH 1/3] Fix variable scope in parser causing issue
+
+---
+ internal/pkg/runtime/engines/config/parser.go | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/internal/pkg/runtime/engines/config/parser.go b/internal/pkg/runtime/engines/config/parser.go
+index 7b3b18ed2..3ebef24b7 100644
+--- a/internal/pkg/runtime/engines/config/parser.go
++++ b/internal/pkg/runtime/engines/config/parser.go
+@@ -19,12 +19,13 @@ import (
+ 
+ // Parser parses configuration found in the file with the specified path.
+ func Parser(filepath string, f interface{}) error {
++	var err error
+ 	var c *os.File
+ 	var b []byte
+ 	directives := make(map[string][]string)
+ 
+ 	if filepath != "" {
+-		c, err := os.Open(filepath)
++		c, err = os.Open(filepath)
+ 		if err != nil {
+ 			return err
+ 		}
+
+From 1b31e4c687bdb2ddda0c48ef749da4d2e6872c34 Mon Sep 17 00:00:00 2001
+From: Cedric Clerget <cedric.clerget@gmail.com>
+Date: Wed, 9 Jan 2019 17:10:08 +0100
+Subject: [PATCH 2/3] Add parser tests
+
+---
+ .../pkg/runtime/engines/config/parser_test.go | 141 ++++++++++++++++++
+ 1 file changed, 141 insertions(+)
+ create mode 100644 internal/pkg/runtime/engines/config/parser_test.go
+
+diff --git a/internal/pkg/runtime/engines/config/parser_test.go b/internal/pkg/runtime/engines/config/parser_test.go
+new file mode 100644
+index 000000000..e0cdd0a23
+--- /dev/null
++++ b/internal/pkg/runtime/engines/config/parser_test.go
+@@ -0,0 +1,141 @@
++// Copyright (c) 2018, Sylabs Inc. All rights reserved.
++// This software is licensed under a 3-clause BSD license. Please consult the
++// LICENSE.md file distributed with the sources of this project regarding your
++// rights to use or distribute this software.
++
++package config
++
++import (
++	"io/ioutil"
++	"os"
++	"reflect"
++	"testing"
++)
++
++type testConfig struct {
++	BoolYes            bool     `default:"yes" authorized:"yes,no" directive:"bool_yes"`
++	BoolNo             bool     `default:"no" authorized:"yes,no" directive:"bool_no"`
++	Uint               uint     `default:"0" directive:"uint"`
++	Int                int      `default:"-0" directive:"int"`
++	String             string   `directive:"string"`
++	StringAuthorized   string   `authorized:"value1,value2" directive:"string_authorized"`
++	StringSlice        []string `directive:"string_slice"`
++	StringSliceDefault []string `default:"value1,value2" directive:"string_slice_default"`
++}
++
++func genConfig(content []byte) (string, error) {
++	f, err := ioutil.TempFile("", "parser-")
++	if err != nil {
++		return "", err
++	}
++	defer f.Close()
++	if _, err := f.Write(content); err != nil {
++		return "", err
++	}
++	return f.Name(), nil
++}
++
++func TestParser(t *testing.T) {
++	var def testConfig
++	var valid testConfig
++
++	if err := Parser("test_samples/no.conf", &def); err == nil {
++		t.Errorf("unexpected success while opening non existent configuration file")
++	}
++
++	if err := Parser("", &def); err != nil {
++		t.Error(err)
++	}
++	if def.BoolYes != true {
++		t.Errorf("unexpected value for bool_yes: %v", def.BoolYes)
++	}
++	if def.BoolNo != false {
++		t.Errorf("unexpected value for bool_no: %v", def.BoolNo)
++	}
++	if def.Uint != 0 {
++		t.Errorf("unexpected value for uint: %v", def.Uint)
++	}
++	if def.Int != 0 {
++		t.Errorf("unexpected value for int: %v", def.Int)
++	}
++	if def.String != "" {
++		t.Errorf("unexpected value for string: %v", def.String)
++	}
++	if def.StringAuthorized != "" {
++		t.Errorf("unexpected value for string_authorized: %v", def.StringAuthorized)
++	}
++	if !reflect.DeepEqual(def.StringSlice, []string{}) {
++		t.Errorf("unexpected value for string_slice: %v", def.StringSlice)
++	}
++	if !reflect.DeepEqual(def.StringSliceDefault, []string{"value1", "value2"}) {
++		t.Errorf("unexpected value for string_slice_default: %v", def.StringSliceDefault)
++	}
++
++	validConfig := []byte(`
++		bool_yes = no
++		bool_no = yes
++		uint = 1
++		int = -1
++		string = data
++		string_authorized = value2
++		string_slice = value1
++		string_slice = value2
++		string_slice = value3
++		string_slice_default = value3
++	`)
++
++	path, err := genConfig(validConfig)
++	if err != nil {
++		t.Error(err)
++	}
++	defer os.Remove(path)
++
++	if err := Parser(path, &valid); err != nil {
++		t.Error(err)
++	}
++	if valid.BoolYes != false {
++		t.Errorf("unexpected value for bool_yes: %v", valid.BoolYes)
++	}
++	if valid.BoolNo != true {
++		t.Errorf("unexpected value for bool_no: %v", valid.BoolNo)
++	}
++	if valid.Uint != 1 {
++		t.Errorf("unexpected value for uint: %v", valid.Uint)
++	}
++	if valid.Int != -1 {
++		t.Errorf("unexpected value for int: %v", valid.Int)
++	}
++	if valid.String != "data" {
++		t.Errorf("unexpected value for string: %v", valid.String)
++	}
++	if valid.StringAuthorized != "value2" {
++		t.Errorf("unexpected value for string_authorized: %v", valid.StringAuthorized)
++	}
++	if !reflect.DeepEqual(valid.StringSlice, []string{"value1", "value2", "value3"}) {
++		t.Errorf("unexpected value for string_slice: %v", valid.StringSlice)
++	}
++	if !reflect.DeepEqual(valid.StringSliceDefault, []string{"value3"}) {
++		t.Errorf("unexpected value for string_slice_default: %v", valid.StringSliceDefault)
++	}
++
++	for _, s := range []string{
++		"bool_yes = enable",
++		"bool_no = disable",
++		"uint = -1",
++		"int = string",
++		"string_authorized = value3",
++	} {
++		badConfig := []byte(s)
++
++		path, err = genConfig(badConfig)
++		if err != nil {
++			t.Error(err)
++		}
++
++		if err := Parser(path, &valid); err == nil {
++			t.Errorf("unexpected success while parsing %s", s)
++		}
++
++		os.Remove(path)
++	}
++}
+
+From 5ff95c2ee8b7a0fbe0e074e9a1b7b2d510e22363 Mon Sep 17 00:00:00 2001
+From: Cedric Clerget <cedric.clerget@gmail.com>
+Date: Wed, 9 Jan 2019 18:12:53 +0100
+Subject: [PATCH 3/3] License new year
+
+---
+ internal/pkg/runtime/engines/config/parser_test.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/internal/pkg/runtime/engines/config/parser_test.go b/internal/pkg/runtime/engines/config/parser_test.go
+index e0cdd0a23..d47cb0c09 100644
+--- a/internal/pkg/runtime/engines/config/parser_test.go
++++ b/internal/pkg/runtime/engines/config/parser_test.go
+@@ -1,4 +1,4 @@
+-// Copyright (c) 2018, Sylabs Inc. All rights reserved.
++// Copyright (c) 2019, Sylabs Inc. All rights reserved.
+ // This software is licensed under a 3-clause BSD license. Please consult the
+ // LICENSE.md file distributed with the sources of this project regarding your
+ // rights to use or distribute this software.
