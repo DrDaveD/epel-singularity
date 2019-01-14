@@ -1,0 +1,22 @@
+From 9713fa424dafc76be2f52e447c697a8ccd243d4f Mon Sep 17 00:00:00 2001
+From: Dave Dykstra <2129743+DrDaveD@users.noreply.github.com>
+Date: Fri, 11 Jan 2019 10:35:50 -0600
+Subject: [PATCH] make allow setuid = no imply using user namespaces
+
+---
+ internal/app/singularity/actions.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/internal/app/singularity/actions.go b/internal/app/singularity/actions.go
+index 0e710c853..f6abbbf79 100644
+--- a/internal/app/singularity/actions.go
++++ b/internal/app/singularity/actions.go
+@@ -498,7 +498,7 @@ func execStarter(cobraCmd *cobra.Command, image string, args []string, name stri
+ 		engineConfig.SetHomeDest(homeSlice[1])
+ 	}
+ 
+-	if IsFakeroot {
++	if !engineConfig.File.AllowSetuid || IsFakeroot {
+ 		UserNamespace = true
+ 	}
+ 
