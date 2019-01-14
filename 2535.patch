@@ -9,8 +9,8 @@ Subject: [PATCH] make allow setuid = no imply using user namespaces
 
 diff --git a/internal/app/singularity/actions.go b/internal/app/singularity/actions.go
 index 0e710c853..f6abbbf79 100644
---- a/internal/app/singularity/actions.go
-+++ b/internal/app/singularity/actions.go
+--- a/cmd/singularity/cli/actions.go
++++ b/cmd/singularity/cli/actions.go
 @@ -498,7 +498,7 @@ func execStarter(cobraCmd *cobra.Command, image string, args []string, name stri
  		engineConfig.SetHomeDest(homeSlice[1])
  	}
