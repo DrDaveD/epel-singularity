@@ -21,175 +21,131 @@
 # 
 # 
 
-%global _hardened_build 1
+%define singgopath src/github.com/sylabs/singularity
 
-%{!?_rel:%{expand:%%global _rel 1.1}}
-
-%if ! 0%{?osg}
-%define require_python3 1
-%else
-%define require_python3 0
-%endif
+# Disable debugsource packages; otherwise it ends up with an empty %files
+#   file in debugsourcefiles.list on Fedora
+%undefine _debugsource_packages
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 2.6.1
-Release: %{_rel}%{?dist}
+Version: 3.0.3
+Release: 1%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
-License: BSD and LBNL BSD
+License: BSD-3-Clause-LBNL
 Group: System Environment/Base
-URL: http://singularity.lbl.gov/
-Source: https://github.com/sylabs/singularity/releases/download/%{version}/%{name}-%{version}.tar.gz
-Source2: %{name}.abignore
-%if %{require_python3}
-# from https://github.com/sylabs/singularity/pull/1818.patch
-Patch1: 1818.patch
-%endif
-# Not from https://github.com/sylabs/singularity/pull/1817.diff
-#  because that includes renames; instead, check out the PR and do git diff
-Patch2: 1817.diff
+URL: https://www.sylabs.io/singularity/
+Source: %{name}-%{version}.tar.gz
 ExclusiveOS: linux
 BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
-%if %{require_python3}
-BuildRequires: /usr/bin/python3
+%if "%{_target_vendor}" == "suse"
+BuildRequires: go
 %else
-BuildRequires: python
+BuildRequires: golang
 %endif
-BuildRequires: automake libtool
-BuildRequires: libarchive-devel
+BuildRequires: wget
+BuildRequires: git
+BuildRequires: gcc
+BuildRequires: make
+BuildRequires: libuuid-devel
+BuildRequires: openssl-devel
+%if ! 0%{?el6}
+BuildRequires: libseccomp-devel
+%endif
 %if "%{_target_vendor}" == "suse"
 Requires: squashfs
 %else
 Requires: squashfs-tools
 %endif
 
-Requires: %{name}-runtime = %{version}-%{release}
+# there's no golang for ppc64, just ppc64le
+ExcludeArch: ppc64
+
+Provides: %{name}-runtime
+Obsoletes: %{name}-runtime
 
 %description
 Singularity provides functionality to make portable
 containers that can be used across host environments.
 
-%package devel
-Summary: Development libraries for Singularity
-Group: System Environment/Development
-
-%description devel
-Development files for Singularity
-
-%package runtime
-Summary: Support for running Singularity containers
-Group: System Environment/Base
-
-%if %{require_python3}
-Requires: /usr/bin/python3
-%endif
-
-%description runtime
-This package contains support for running containers created
-by the %{name} package.
+%debug_package
 
 %prep
-%setup -q
-%if %{require_python3}
-%patch1 -p1
-%endif
-%patch2 -p1
-
+# Create our build root
+rm -rf %{name}-%{version}
+mkdir %{name}-%{version}
 
 %build
-# always invoke even if configure exists, because the corresponding
-#  automake version may be wrong
-./autogen.sh
+cd %{name}-%{version}
 
-%configure
-%{__make} %{?mflags}
+mkdir -p gopath/%{singgopath}
+tar -C "gopath/src/github.com/sylabs/" -xf "%SOURCE0"
 
+export GOPATH=$PWD/gopath
+export PATH=$GOPATH/bin:$PATH
+cd $GOPATH/%{singgopath}
+
+./mconfig -V %{version}-%{release} --prefix=%{_prefix} --exec-prefix=%{_exec_prefix} \
+	--bindir=%{_bindir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
+	--sharedstatedir=%{_sharedstatedir} --localstatedir=%{_localstatedir} \
+	--libdir=%{_libdir}
+
+cd builddir
+make old_config=
 
 %install
-%{__make} install DESTDIR=$RPM_BUILD_ROOT %{?mflags_install}
-rm -f $RPM_BUILD_ROOT/%{_libdir}/singularity/lib*.la
-install -m 644 %{SOURCE2} $RPM_BUILD_ROOT/%{_libdir}/singularity/
+cd %{name}-%{version}
 
-%post runtime -p /sbin/ldconfig
-%postun runtime -p /sbin/ldconfig
+export GOPATH=$PWD/gopath
+export PATH=$GOPATH/bin:$PATH
+cd $GOPATH/%{singgopath}/builddir
+
+mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
+make DESTDIR=$RPM_BUILD_ROOT install man
+chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
-%license LICENSE.md LICENSE-LBNL.md
-%doc examples CONTRIBUTORS.md CONTRIBUTING.md COPYRIGHT.md INSTALL.md LICENSE-LBNL.md LICENSE.md README.md
-%attr(0755, root, root) %dir %{_sysconfdir}/singularity
-%attr(0644, root, root) %config(noreplace) %{_sysconfdir}/singularity/*
-
-%{_libexecdir}/singularity/cli/apps.*
-%{_libexecdir}/singularity/cli/bootstrap.*
-%{_libexecdir}/singularity/cli/build.*
-%{_libexecdir}/singularity/cli/check.*
-%{_libexecdir}/singularity/cli/create.*
-%{_libexecdir}/singularity/cli/image.*
-%{_libexecdir}/singularity/cli/inspect.*
-%{_libexecdir}/singularity/cli/mount.*
-%{_libexecdir}/singularity/cli/pull.*
-%{_libexecdir}/singularity/cli/selftest.*
-%{_libexecdir}/singularity/helpers
-
-# Binaries
-%{_libexecdir}/singularity/bin/builddef
-%{_libexecdir}/singularity/bin/get-section
-%{_libexecdir}/singularity/bin/mount
-%{_libexecdir}/singularity/bin/image-type
-%{_libexecdir}/singularity/bin/prepheader
-
-#SUID programs
-%attr(4755, root, root) %{_libexecdir}/singularity/bin/mount-suid
-
-%files runtime
+%attr(4755, root, root) %{_libexecdir}/singularity/bin/starter-suid
+%{_bindir}/*
 %dir %{_libexecdir}/singularity
+%{_libexecdir}/singularity/bin/starter
+%{_libexecdir}/singularity/cni/*
+%dir %{_sysconfdir}/singularity
+%config(noreplace) %{_sysconfdir}/singularity/*
+%attr(755, root, root) %{_sysconfdir}/singularity/actions/exec
+%attr(755, root, root) %{_sysconfdir}/singularity/actions/run
+%attr(755, root, root) %{_sysconfdir}/singularity/actions/shell
+%attr(755, root, root) %{_sysconfdir}/singularity/actions/start
+%attr(755, root, root) %{_sysconfdir}/singularity/actions/test
+%dir %{_sysconfdir}/bash_completion.d
+%{_sysconfdir}/bash_completion.d/*
 %dir %{_localstatedir}/singularity
 %dir %{_localstatedir}/singularity/mnt
 %dir %{_localstatedir}/singularity/mnt/session
-%dir %{_localstatedir}/singularity/mnt/container
-%dir %{_localstatedir}/singularity/mnt/overlay
-%dir %{_localstatedir}/singularity/mnt/final
-%{_bindir}/singularity
-%{_bindir}/run-singularity
-%{_libdir}/singularity/lib*.so.*
-%{_libdir}/singularity/*.abignore
-%{_libexecdir}/singularity/cli/action_argparser.*
-%{_libexecdir}/singularity/cli/exec.*
-%{_libexecdir}/singularity/cli/help.*
-%{_libexecdir}/singularity/cli/instance.*
-%{_libexecdir}/singularity/cli/run.*
-%{_libexecdir}/singularity/cli/shell.*
-%{_libexecdir}/singularity/cli/test.*
-%{_libexecdir}/singularity/bin/action
-%{_libexecdir}/singularity/bin/get-configvals
-%{_libexecdir}/singularity/bin/cleanupd
-%{_libexecdir}/singularity/bin/start
-%{_libexecdir}/singularity/bin/docker-extract
-%{_libexecdir}/singularity/bootstrap-scripts
-%{_libexecdir}/singularity/functions
-%{_libexecdir}/singularity/handlers
-%{_libexecdir}/singularity/image-handler.sh
-%{_libexecdir}/singularity/python
-%dir %{_sysconfdir}/singularity
-%config(noreplace) %{_sysconfdir}/singularity/*
-%{_mandir}/man1/singularity.1*
-%dir %{_sysconfdir}/bash_completion.d
-%{_sysconfdir}/bash_completion.d/singularity
-
-#SUID programs
-%attr(4755, root, root) %{_libexecdir}/singularity/bin/action-suid
-%attr(4755, root, root) %{_libexecdir}/singularity/bin/start-suid
-
-%files devel
-%{_libdir}/singularity/lib*.so
-%{_libdir}/singularity/lib*.a
-%{_includedir}/singularity/*.h
+# XXX: Not great since we can't control this location...
+%{_mandir}/man1/*
 
 
 %changelog
+* Tue Jan 22 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.3-1
+- Update to upstream 3.0.3-1 release.
+
+* Fri Jan 18 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.3-rc2
+- Update to upstream 3.0.3-rc2
+
+* Wed Jan 16 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.3-rc1
+- Update to upstream 3.0.3-rc1
+
+* Wed Jan 09 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.2-1.2
+- Add patch for PR 2531
+
+* Mon Jan 07 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.2-1.1
+- Update to upstream 3.0.2
+- Added patches for PRs 2472, 2478, 2481
+
 * Tue Dec 11 2018 Dave Dykstra <dwd@fedoraproject.org> - 2.6.1-1.1
 - Update to released upstream 2.6.1
 
@@ -346,6 +302,3 @@ rm -rf $RPM_BUILD_ROOT
 - New version
 - BR automake, libtool and run autogen
 
-* Wed Apr 06 2016 Dave Love <loveshack@fedoraproject.org> - 1.0-0.1.20150405
-- Initial version adapted for Fedora as minimally as possible from
-  bundled spec (can't run on el5)
