@@ -33,7 +33,6 @@ Version: 3.0.3
 Release: 1%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
-Group: System Environment/Base
 URL: https://www.sylabs.io/singularity/
 Source: %{name}-%{version}.tar.gz
 ExclusiveOS: linux
