@@ -36,7 +36,6 @@ License: BSD-3-Clause-LBNL
 URL: https://www.sylabs.io/singularity/
 Source: %{name}-%{version}.tar.gz
 ExclusiveOS: linux
-BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 %if "%{_target_vendor}" == "suse"
 BuildRequires: go
 %else
