@@ -102,9 +102,6 @@ mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
 make DESTDIR=$RPM_BUILD_ROOT install man
 chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
 
-%clean
-rm -rf $RPM_BUILD_ROOT
-
 %files
 %attr(4755, root, root) %{_libexecdir}/singularity/bin/starter-suid
 %{_bindir}/*
