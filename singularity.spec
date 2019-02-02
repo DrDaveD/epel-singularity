@@ -30,7 +30,7 @@
 Summary: Application and environment virtualization
 Name: singularity
 Version: 3.0.3
-Release: 1%{?dist}
+Release: 2%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
 URL: https://www.sylabs.io/singularity/
@@ -125,6 +125,9 @@ chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
 
 
 %changelog
+* Sat Feb 02 2019 Fedora Release Engineering <releng@fedoraproject.org> - 3.0.3-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_30_Mass_Rebuild
+
 * Tue Jan 22 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.3-1
 - Update to upstream 3.0.3-1 release.
 
