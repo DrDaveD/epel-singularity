@@ -29,8 +29,8 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 3.0.3
-Release: 2%{?dist}
+Version: 3.1.0
+Release: 1%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
 URL: https://www.sylabs.io/singularity/
@@ -41,7 +41,6 @@ BuildRequires: go
 %else
 BuildRequires: golang
 %endif
-BuildRequires: wget
 BuildRequires: git
 BuildRequires: gcc
 BuildRequires: make
@@ -83,10 +82,22 @@ export GOPATH=$PWD/gopath
 export PATH=$GOPATH/bin:$PATH
 cd $GOPATH/%{singgopath}
 
-./mconfig -V %{version}-%{release} --prefix=%{_prefix} --exec-prefix=%{_exec_prefix} \
-	--bindir=%{_bindir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
-	--sharedstatedir=%{_sharedstatedir} --localstatedir=%{_localstatedir} \
-	--libdir=%{_libdir}
+# Not all of these parameters currently have an effect, but they might be
+#  used someday.  They are the same parameters as in the configure macro.
+./mconfig -V %{version}-%{release} \
+        --prefix=%{_prefix} \
+        --exec-prefix=%{_exec_prefix} \
+        --bindir=%{_bindir} \
+        --sbindir=%{_sbindir} \
+        --sysconfdir=%{_sysconfdir} \
+        --datadir=%{_datadir} \
+        --includedir=%{_includedir} \
+        --libdir=%{_libdir} \
+        --libexecdir=%{_libexecdir} \
+        --localstatedir=%{_localstatedir} \
+        --sharedstatedir=%{_sharedstatedir} \
+        --mandir=%{_mandir} \
+        --infodir=%{_infodir}
 
 cd builddir
 make old_config=
@@ -125,6 +136,9 @@ chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
 
 
 %changelog
+* Mon Feb 25 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.1.0-1
+- Update to upstream 3.1.0-1
+
 * Sat Feb 02 2019 Fedora Release Engineering <releng@fedoraproject.org> - 3.0.3-2
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_30_Mass_Rebuild
 
