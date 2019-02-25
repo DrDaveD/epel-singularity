@@ -29,21 +29,18 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 3.0.3
+Version: 3.1.0
 Release: 1%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
-Group: System Environment/Base
 URL: https://www.sylabs.io/singularity/
 Source: %{name}-%{version}.tar.gz
 ExclusiveOS: linux
-BuildRoot: %{?_tmppath}%{!?_tmppath:/var/tmp}/%{name}-%{version}-%{release}-root
 %if "%{_target_vendor}" == "suse"
 BuildRequires: go
 %else
 BuildRequires: golang
 %endif
-BuildRequires: wget
 BuildRequires: git
 BuildRequires: gcc
 BuildRequires: make
@@ -85,10 +82,22 @@ export GOPATH=$PWD/gopath
 export PATH=$GOPATH/bin:$PATH
 cd $GOPATH/%{singgopath}
 
-./mconfig -V %{version}-%{release} --prefix=%{_prefix} --exec-prefix=%{_exec_prefix} \
-	--bindir=%{_bindir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
-	--sharedstatedir=%{_sharedstatedir} --localstatedir=%{_localstatedir} \
-	--libdir=%{_libdir}
+# Not all of these parameters currently have an effect, but they might be
+#  used someday.  They are the same parameters as in the configure macro.
+./mconfig -V %{version}-%{release} \
+        --prefix=%{_prefix} \
+        --exec-prefix=%{_exec_prefix} \
+        --bindir=%{_bindir} \
+        --sbindir=%{_sbindir} \
+        --sysconfdir=%{_sysconfdir} \
+        --datadir=%{_datadir} \
+        --includedir=%{_includedir} \
+        --libdir=%{_libdir} \
+        --libexecdir=%{_libexecdir} \
+        --localstatedir=%{_localstatedir} \
+        --sharedstatedir=%{_sharedstatedir} \
+        --mandir=%{_mandir} \
+        --infodir=%{_infodir}
 
 cd builddir
 make old_config=
@@ -103,9 +112,6 @@ cd $GOPATH/%{singgopath}/builddir
 mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
 make DESTDIR=$RPM_BUILD_ROOT install man
 chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
-
-%clean
-rm -rf $RPM_BUILD_ROOT
 
 %files
 %attr(4755, root, root) %{_libexecdir}/singularity/bin/starter-suid
@@ -130,6 +136,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Feb 25 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.1.0-1
+- Update to upstream 3.1.0-1
+
 * Tue Jan 22 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.0.3-1
 - Update to upstream 3.0.3-1 release.
 
