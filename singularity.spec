@@ -29,7 +29,7 @@
 
 Summary: Application and environment virtualization
 Name: singularity
-Version: 3.1.0
+Version: 3.1.1
 Release: 1%{?dist}
 # https://spdx.org/licenses/BSD-3-Clause-LBNL.html
 License: BSD-3-Clause-LBNL
@@ -37,7 +37,9 @@ URL: https://www.sylabs.io/singularity/
 Source: %{name}-%{version}.tar.gz
 ExclusiveOS: linux
 %if "%{_target_vendor}" == "suse"
+%if "%{sles_version}" != "11"
 BuildRequires: go
+%endif
 %else
 BuildRequires: golang
 %endif
@@ -47,7 +49,9 @@ BuildRequires: make
 BuildRequires: libuuid-devel
 BuildRequires: openssl-devel
 %if ! 0%{?el6}
+%if "%{sles_version}" != "11"
 BuildRequires: libseccomp-devel
+%endif
 %endif
 %if "%{_target_vendor}" == "suse"
 Requires: squashfs
@@ -136,6 +140,9 @@ chmod 644 $RPM_BUILD_ROOT%{_sysconfdir}/singularity/actions/*
 
 
 %changelog
+* Tue Apr 02 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.1.1-1
+- Update to upstream 3.1.1-1
+
 * Mon Feb 25 2019 Dave Dykstra <dwd@fedoraproject.org> - 3.1.0-1
 - Update to upstream 3.1.0-1
 
